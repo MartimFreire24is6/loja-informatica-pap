@@ -366,91 +366,13 @@ foreach ($mensagensRecebidas as $m) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Administração - TechStore PAP</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        @media print {
-            @page {
-                margin: 12mm;
-            }
-
-            body {
-                background: #ffffff !important;
-                color: #000000 !important;
-            }
-
-            .navbar,
-            footer,
-            .nav-tabs,
-            .d-print-none,
-            .btn,
-            form,
-            .alert-dismissible .btn-close {
-                display: none !important;
-            }
-
-            .card,
-            .accordion-item,
-            .border {
-                box-shadow: none !important;
-                border-color: #dee2e6 !important;
-            }
-
-            .accordion-collapse {
-                display: block !important;
-                height: auto !important;
-                visibility: visible !important;
-            }
-
-            .accordion-button {
-                color: #000000 !important;
-                background: #ffffff !important;
-                box-shadow: none !important;
-            }
-
-            .accordion-button::after {
-                display: none !important;
-            }
-
-            .container {
-                max-width: 100% !important;
-                width: 100% !important;
-            }
-
-            body.imprimir-encomenda .container > :not(#adminTabsContent) {
-                display: none !important;
-            }
-
-            body.imprimir-encomenda #adminTabsContent > .tab-pane:not(#pane-encomendas) {
-                display: none !important;
-            }
-
-            body.imprimir-encomenda #pane-encomendas {
-                display: block !important;
-                opacity: 1 !important;
-            }
-
-            body.imprimir-encomenda #accordionEncomendas > .accordion-item {
-                display: none !important;
-            }
-
-            body.imprimir-encomenda #accordionEncomendas > .accordion-item.print-selected {
-                display: block !important;
-            }
-        }
-    </style>
+    <link href="assets/css/estilo.css" rel="stylesheet">
 </head>
 <body class="bg-light">
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="index.php">🖥️ TechStore PAP</a>
-            <div class="d-flex">
-                <a href="index.php" class="btn btn-outline-light btn-sm">← Voltar à Loja</a>
-                <a href="logout.php" class="btn btn-outline-danger btn-sm ms-2">Sair</a>
-            </div>
-        </div>
-    </nav>
+    <?php require 'includes/navbar.php'; ?>
 
-    <div class="container mb-5">
+    <main class="container mb-5 flex-grow-1">
         <h2 class="fw-bold mb-3">Painel de Administração</h2>
 
         <div class="row g-3 mb-4">
@@ -458,7 +380,7 @@ foreach ($mensagensRecebidas as $m) {
                 <div class="card shadow-sm border-0 h-100">
                     <div class="card-body">
                         <div class="text-muted small">Produtos no Catálogo</div>
-                        <div class="fs-3 fw-bold"><?= count($produtos) ?></div>
+                        <div class="fs-3 fw-bold tabular-nums"><?= count($produtos) ?></div>
                     </div>
                 </div>
             </div>
@@ -466,7 +388,7 @@ foreach ($mensagensRecebidas as $m) {
                 <div class="card shadow-sm border-0 h-100">
                     <div class="card-body">
                         <div class="text-muted small">Stock Baixo / Esgotado (≤ 2)</div>
-                        <div class="fs-3 fw-bold <?= $produtosStockBaixo > 0 ? 'text-warning' : 'text-success' ?>">
+                        <div class="fs-3 fw-bold tabular-nums <?= $produtosStockBaixo > 0 ? 'text-warning' : 'text-success' ?>">
                             <?= (int)$produtosStockBaixo ?>
                         </div>
                     </div>
@@ -476,7 +398,7 @@ foreach ($mensagensRecebidas as $m) {
                 <div class="card shadow-sm border-0 h-100">
                     <div class="card-body">
                         <div class="text-muted small">Encomendas</div>
-                        <div class="fs-3 fw-bold"><?= count($encomendas) ?></div>
+                        <div class="fs-3 fw-bold tabular-nums"><?= count($encomendas) ?></div>
                     </div>
                 </div>
             </div>
@@ -484,7 +406,7 @@ foreach ($mensagensRecebidas as $m) {
                 <div class="card shadow-sm border-0 h-100">
                     <div class="card-body">
                         <div class="text-muted small">Mensagens por Ler</div>
-                        <div class="fs-3 fw-bold <?= $mensagensNaoLidas > 0 ? 'text-primary' : 'text-secondary' ?>">
+                        <div class="fs-3 fw-bold tabular-nums <?= $mensagensNaoLidas > 0 ? 'text-primary' : 'text-secondary' ?>">
                             <?= (int)$mensagensNaoLidas ?>
                         </div>
                     </div>
@@ -581,7 +503,7 @@ foreach ($mensagensRecebidas as $m) {
                     </div>
 
                     <div class="col-12">
-                        <button type="submit" class="btn btn-success">Guardar Produto na Base de Dados</button>
+                        <button type="submit" class="btn btn-primary">Guardar Produto na Base de Dados</button>
                     </div>
                 </form>
             </div>
@@ -768,7 +690,7 @@ foreach ($mensagensRecebidas as $m) {
                                 <input type="text" id="nome_categoria" name="nome_categoria" class="form-control" maxlength="100" required>
                             </div>
                             <div class="col-md-4">
-                                <button type="submit" class="btn btn-success">Guardar Categoria</button>
+                                <button type="submit" class="btn btn-primary">Guardar Categoria</button>
                             </div>
                         </form>
                         <?php if (empty($categorias)): ?>
@@ -839,7 +761,7 @@ foreach ($mensagensRecebidas as $m) {
                                         <span class="badge bg-secondary ms-auto me-2">
                                             <?= htmlspecialchars($enc['estado']) ?>
                                         </span>
-                                        <span class="badge bg-success ms-auto me-2">
+                                        <span class="badge bg-success ms-auto me-2 tabular-nums">
                                             <?= number_format((float)$enc['total'], 2, ',', ' ') ?> €
                                         </span>
                                     </button>
@@ -924,9 +846,9 @@ foreach ($mensagensRecebidas as $m) {
                                                         <tr>
                                                             <td><?= htmlspecialchars($l['nome_produto']) ?></td>
                                                             <td><?= htmlspecialchars($l['marca']) ?></td>
-                                                            <td class="text-center"><?= (int)$l['quantidade'] ?></td>
-                                                            <td class="text-end"><?= number_format((float)$l['preco_unitario'], 2, ',', ' ') ?> €</td>
-                                                            <td class="text-end fw-semibold"><?= number_format((float)$l['subtotal'], 2, ',', ' ') ?> €</td>
+                                                            <td class="text-center tabular-nums"><?= (int)$l['quantidade'] ?></td>
+                                                            <td class="text-end tabular-nums"><?= number_format((float)$l['preco_unitario'], 2, ',', ' ') ?> €</td>
+                                                            <td class="text-end fw-semibold tabular-nums"><?= number_format((float)$l['subtotal'], 2, ',', ' ') ?> €</td>
                                                         </tr>
                                                     <?php endforeach; ?>
                                                 </tbody>
@@ -995,8 +917,9 @@ foreach ($mensagensRecebidas as $m) {
         </div>
             </div>
         </div>
-    </div>
+    </main>
 
+    <?php require 'includes/footer.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function imprimirEncomenda(botao) {

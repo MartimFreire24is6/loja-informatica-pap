@@ -1,8 +1,7 @@
 <?php
 session_start();
-$totalItensCarrinho = array_sum($_SESSION['carrinho'] ?? []);
-
 require_once 'db.php';
+require_once 'includes/helpers.php';
 
 // Buscar todas as categorias para o menu de filtros
 $stmtCat = $pdo->query("SELECT * FROM categorias ORDER BY nome ASC");
@@ -58,34 +57,13 @@ $produtos = $stmtProd->fetchAll();
     <title>TechStore PAP - Computadores e Periféricos</title>
     <!-- Bootstrap 5 via CDN para um visual moderno e responsivo -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .card-img-top {
-            height: 200px;
-            object-fit: cover;
-        }
-    </style>
+    <link href="assets/css/estilo.css" rel="stylesheet">
 </head>
 <body class="bg-light">
 
-    <!-- Barra de Navegação -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="index.php">🖥️ TechStore PAP</a>
-            <div class="navbar-nav me-auto">
-                <a class="nav-link" href="index.php">Início</a>
-                <a class="nav-link active" href="catalogo.php">Catálogo</a>
-                <a class="nav-link" href="sobre.php">Sobre Nós</a>
-            </div>
-            <div class="d-flex">
-                <a href="carrinho.php" class="btn btn-warning btn-sm fw-bold me-2">
-                    🛒 Carrinho (<?= (int)$totalItensCarrinho ?>)
-                </a>
-                <a href="admin.php" class="btn btn-outline-light btn-sm">Área de Administração</a>
-            </div>
-        </div>
-    </nav>
+    <?php require 'includes/navbar.php'; ?>
 
-    <div class="container">
+    <main class="container flex-grow-1">
         <!-- Cabeçalho -->
         <div class="p-4 mb-4 bg-white rounded-3 shadow-sm">
             <h1 class="display-6 fw-bold">Hardware & Periféricos</h1>
@@ -140,13 +118,17 @@ $produtos = $stmtProd->fetchAll();
                 </div>
             <?php else: ?>
                 <?php foreach ($produtos as $prod): ?>
+                    <?php $estadoStock = obterEstadoStockProduto((int)$prod['stock']); ?>
                     <div class="col">
-                        <div class="card h-100 shadow-sm position-relative">
-                            <img src="<?= htmlspecialchars($prod['imagem']) ?>" class="card-img-top" alt="<?= htmlspecialchars($prod['nome']) ?>">
+                        <div class="card produto-card h-100 shadow-sm position-relative">
+                            <div class="produto-img-wrap">
+                                <img src="<?= htmlspecialchars($prod['imagem']) ?>" alt="<?= htmlspecialchars($prod['nome']) ?>">
+                            </div>
                             <div class="card-body d-flex flex-column">
                                 <div class="mb-2">
                                     <span class="badge bg-secondary"><?= htmlspecialchars($prod['categoria_nome']) ?></span>
                                     <span class="badge bg-info text-dark"><?= htmlspecialchars($prod['marca']) ?></span>
+                                    <span class="badge rounded-pill <?= htmlspecialchars($estadoStock['classe']) ?> tabular-nums"><?= htmlspecialchars($estadoStock['texto']) ?></span>
                                 </div>
                                 <h5 class="card-title">
                                     <a href="produto.php?id=<?= (int)$prod['id'] ?>" class="text-decoration-none text-dark stretched-link">
@@ -155,25 +137,27 @@ $produtos = $stmtProd->fetchAll();
                                 </h5>
                                 <p class="card-text text-muted small flex-grow-1"><?= htmlspecialchars($prod['descricao']) ?></p>
                                 <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
-                                    <span class="fs-5 fw-bold text-success"><?= number_format($prod['preco'], 2, ',', ' ') ?> €</span>
-                                    <span class="small <?= $prod['stock'] > 0 ? 'text-muted' : 'text-danger fw-bold' ?>">
-                                        <?= $prod['stock'] > 0 ? "Stock: {$prod['stock']} un." : 'Esgotado' ?>
-                                    </span>
+                                    <span class="fs-5 fw-bold text-success preco-destaque tabular-nums"><?= number_format($prod['preco'], 2, ',', ' ') ?> €</span>
                                 </div>
-                                <form method="POST" action="carrinho.php" class="mt-3 position-relative" style="z-index: 2;">
-                                    <input type="hidden" name="acao" value="adicionar">
-                                    <input type="hidden" name="id" value="<?= (int)$prod['id'] ?>">
-                                    <button type="submit" class="btn btn-primary btn-sm w-100" <?= ((int)$prod['stock'] <= 0) ? 'disabled' : '' ?>>
-                                        <?= ((int)$prod['stock'] > 0) ? '+ Adicionar ao Carrinho' : 'Sem Stock' ?>
-                                    </button>
-                                </form>
+                                <?php if ((int)$prod['stock'] > 0): ?>
+                                    <form method="POST" action="carrinho.php" class="mt-3 position-relative" style="z-index: 2;">
+                                        <input type="hidden" name="acao" value="adicionar">
+                                        <input type="hidden" name="id" value="<?= (int)$prod['id'] ?>">
+                                        <button type="submit" class="btn btn-primary btn-sm w-100">Adicionar ao Carrinho</button>
+                                    </form>
+                                <?php else: ?>
+                                    <button type="button" class="btn btn-secondary btn-sm mt-3" disabled>Sem stock</button>
+                                <?php endif; ?>
                             </div>
                         </div>
-                    </div>
+                        </div>
                 <?php endforeach; ?>
             <?php endif; ?>
         </div>
-    </div>
+    </main>
 
+    <?php require 'includes/footer.php'; ?>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

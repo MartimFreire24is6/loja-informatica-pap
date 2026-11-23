@@ -263,51 +263,12 @@ if (!empty($_SESSION['carrinho'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Carrinho - TechStore PAP</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        @media print {
-            @page {
-                margin: 12mm;
-            }
-
-            body {
-                background: #ffffff !important;
-                color: #000000 !important;
-            }
-
-            .navbar,
-            footer,
-            .d-print-none,
-            .btn,
-            form,
-            .alert-dismissible .btn-close {
-                display: none !important;
-            }
-
-            .card,
-            .border {
-                box-shadow: none !important;
-                border-color: #dee2e6 !important;
-            }
-
-            .container {
-                max-width: 100% !important;
-                width: 100% !important;
-            }
-        }
-    </style>
+    <link href="assets/css/estilo.css" rel="stylesheet">
 </head>
 <body class="bg-light">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="index.php">🖥️ TechStore PAP</a>
-            <div class="d-flex gap-2">
-                <a href="index.php" class="btn btn-outline-light btn-sm">← Continuar a Comprar</a>
-                <a href="admin.php" class="btn btn-outline-secondary btn-sm text-white">Área de Administração</a>
-            </div>
-        </div>
-    </nav>
+    <?php require 'includes/navbar.php'; ?>
 
-    <div class="container mb-5">
+    <main class="container mb-5 flex-grow-1">
         <h2 class="fw-bold mb-3">Carrinho de Compras</h2>
 
         <?php if ($mensagem !== ''): ?>
@@ -361,15 +322,15 @@ if (!empty($_SESSION['carrinho'])) {
                                             <small class="text-muted"><?= htmlspecialchars($linha['marca']) ?></small>
                                         </td>
                                         <td class="text-center"><?= (int)$linha['qtd'] ?></td>
-                                        <td class="text-end"><?= number_format((float)$linha['preco'], 2, ',', ' ') ?> €</td>
-                                        <td class="text-end fw-semibold"><?= number_format((float)$linha['subtotal'], 2, ',', ' ') ?> €</td>
+                                        <td class="text-end tabular-nums"><?= number_format((float)$linha['preco'], 2, ',', ' ') ?> €</td>
+                                        <td class="text-end fw-semibold tabular-nums"><?= number_format((float)$linha['subtotal'], 2, ',', ' ') ?> €</td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
                             <tfoot>
                                 <tr>
                                     <th colspan="3" class="text-end fs-6">Total da Encomenda:</th>
-                                    <th class="text-end fs-5 text-success">
+                                    <th class="text-end fs-5 text-success tabular-nums">
                                         <?= number_format((float)$ultimaEncomenda['total'], 2, ',', ' ') ?> €
                                     </th>
                                 </tr>
@@ -411,18 +372,18 @@ if (!empty($_SESSION['carrinho'])) {
                                 <tr>
                                     <td>
                                         <div class="fw-bold"><?= htmlspecialchars($item['nome']) ?></div>
-                                        <small class="text-muted"><?= htmlspecialchars($item['marca']) ?> • <?= htmlspecialchars($item['categoria_nome']) ?> (Stock: <?= (int)$item['stock'] ?>)</small>
+                                        <small class="text-muted"><?= htmlspecialchars($item['marca']) ?> • <?= htmlspecialchars($item['categoria_nome']) ?> (Stock: <span class="tabular-nums"><?= (int)$item['stock'] ?></span>)</small>
                                     </td>
-                                    <td><?= number_format((float)$item['preco'], 2, ',', ' ') ?> €</td>
+                                    <td class="tabular-nums"><?= number_format((float)$item['preco'], 2, ',', ' ') ?> €</td>
                                     <td>
                                         <form method="POST" class="d-flex gap-1">
                                             <input type="hidden" name="acao" value="atualizar_qtd">
                                             <input type="hidden" name="id" value="<?= (int)$item['id'] ?>">
-                                            <input type="number" name="qtd" min="0" max="<?= (int)$item['stock'] ?>" value="<?= (int)$item['qtd'] ?>" class="form-control form-control-sm">
+                                            <input type="number" name="qtd" min="0" max="<?= (int)$item['stock'] ?>" value="<?= (int)$item['qtd'] ?>" class="form-control form-control-sm tabular-nums">
                                             <button type="submit" class="btn btn-outline-primary btn-sm">OK</button>
                                         </form>
                                     </td>
-                                    <td class="fw-bold"><?= number_format((float)$item['subtotal'], 2, ',', ' ') ?> €</td>
+                                    <td class="fw-bold tabular-nums"><?= number_format((float)$item['subtotal'], 2, ',', ' ') ?> €</td>
                                     <td class="text-end">
                                         <form method="POST" class="d-inline">
                                             <input type="hidden" name="acao" value="remover">
@@ -487,14 +448,15 @@ if (!empty($_SESSION['carrinho'])) {
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 pt-2 border-top">
                     <div>
                         <span class="text-muted">Total da Encomenda:</span>
-                        <span class="fs-4 fw-bold text-success ms-2"><?= number_format($totalGeral, 2, ',', ' ') ?> €</span>
+                        <span class="fs-4 fw-bold text-success ms-2 preco-destaque tabular-nums"><?= number_format($totalGeral, 2, ',', ' ') ?> €</span>
                     </div>
-                    <button type="submit" class="btn btn-success btn-lg">Finalizar Compra</button>
+                    <button type="submit" class="btn btn-primary btn-lg">Finalizar Compra</button>
                 </div>
             </form>
         <?php endif; ?>
-    </div>
+    </main>
 
+    <?php require 'includes/footer.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
