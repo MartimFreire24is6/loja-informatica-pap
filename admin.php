@@ -90,6 +90,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'atualiz
     }
 }
 
+// 2b. Edição completa de produto (UPDATE completo)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'editar_completo') {
+    $id           = (int)($_POST['id'] ?? 0);
+    $categoria_id = (int)($_POST['categoria_id'] ?? 0);
+    $nome         = trim($_POST['nome'] ?? '');
+    $marca        = trim($_POST['marca'] ?? '');
+    $descricao    = trim($_POST['descricao'] ?? '');
+    $preco        = (float)str_replace(',', '.', $_POST['preco'] ?? 0);
+    $stock        = (int)($_POST['stock'] ?? 0);
+    $imagem       = trim($_POST['imagem'] ?? '');
+
+    if ($imagem === '') {
+        $imagem = 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=600';
+    }
+
+    if ($id > 0 && $categoria_id > 0 && $nome !== '' && $marca !== '' && $preco > 0 && $stock >= 0) {
+        $stmt = $pdo->prepare("
+            UPDATE produtos
+            SET categoria_id = ?, nome = ?, marca = ?, descricao = ?, preco = ?, stock = ?, imagem = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([$categoria_id, $nome, $marca, $descricao, $preco, $stock, $imagem, $id]);
+        $mensagem = "Produto «{$nome}» (#{$id}) atualizado com sucesso!";
+        $tipoAlerta = 'success';
+    } else {
+        $mensagem = "Verifica os campos obrigatórios para editar o produto.";
+        $tipoAlerta = 'danger';
+    }
+}
+
 // 3. Apagar produto (DELETE)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'apagar') {
     $id = (int)($_POST['id'] ?? 0);
@@ -121,6 +151,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'estado_
 // Buscar categorias e produtos para listar na página
 $categorias = $pdo->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
 $produtos   = $pdo->query("SELECT p.*, c.nome AS categoria_nome FROM produtos p JOIN categorias c ON p.categoria_id = c.id ORDER BY p.id DESC")->fetchAll();
+$produtoEditar = null;
+$editarId = (int)($_GET['editar_id'] ?? 0);
+if ($editarId > 0) {
+    $stmtEdit = $pdo->prepare("SELECT * FROM produtos WHERE id = ?");
+    $stmtEdit->execute([$editarId]);
+    $produtoEditar = $stmtEdit->fetch() ?: null;
+}
 
 // Buscar encomendas e respetivos itens
 $encomendas = $pdo->query("SELECT * FROM encomendas ORDER BY id DESC")->fetchAll();
@@ -245,6 +282,66 @@ if (!empty($encomendas)) {
             </div>
         </div>
 
+        <?php if ($produtoEditar): ?>
+            <div class="card shadow-sm mb-4 border-warning">
+                <div class="card-header bg-warning text-dark fw-bold d-flex justify-content-between align-items-center">
+                    <span>✏️ A Editar Produto #<?= (int)$produtoEditar['id'] ?></span>
+                    <a href="admin.php" class="btn btn-sm btn-outline-dark">Cancelar</a>
+                </div>
+                <div class="card-body">
+                    <form method="POST" class="row g-3">
+                        <input type="hidden" name="acao" value="editar_completo">
+                        <input type="hidden" name="id" value="<?= (int)$produtoEditar['id'] ?>">
+
+                        <div class="col-md-4">
+                            <label class="form-label">Nome do Produto *</label>
+                            <input type="text" name="nome" class="form-control" value="<?= htmlspecialchars($produtoEditar['nome']) ?>" required>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Marca *</label>
+                            <input type="text" name="marca" class="form-control" value="<?= htmlspecialchars($produtoEditar['marca']) ?>" required>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Categoria *</label>
+                            <select name="categoria_id" class="form-select" required>
+                                <?php foreach ($categorias as $cat): ?>
+                                    <option value="<?= (int)$cat['id'] ?>" <?= (int)$cat['id'] === (int)$produtoEditar['categoria_id'] ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($cat['nome']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="form-label">Preço (€) *</label>
+                            <input type="number" step="0.01" min="0" name="preco" class="form-control" value="<?= htmlspecialchars((string)$produtoEditar['preco']) ?>" required>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="form-label">Stock *</label>
+                            <input type="number" min="0" name="stock" class="form-control" value="<?= (int)$produtoEditar['stock'] ?>" required>
+                        </div>
+
+                        <div class="col-md-5">
+                            <label class="form-label">URL da Imagem</label>
+                            <input type="url" name="imagem" class="form-control" value="<?= htmlspecialchars((string)$produtoEditar['imagem']) ?>">
+                        </div>
+
+                        <div class="col-md-5">
+                            <label class="form-label">Descrição / Especificações</label>
+                            <input type="text" name="descricao" class="form-control" value="<?= htmlspecialchars((string)$produtoEditar['descricao']) ?>">
+                        </div>
+
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-warning fw-bold">Guardar Alterações do Produto</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <!-- Tabela de Gestão de Stock e Produtos -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-dark text-white fw-bold">
@@ -288,6 +385,7 @@ if (!empty($encomendas)) {
                                         <input type="hidden" name="id" value="<?= $prod['id'] ?>">
                                         <button type="submit" class="btn btn-danger btn-sm">Apagar</button>
                                     </form>
+                                    <a href="admin.php?editar_id=<?= (int)$prod['id'] ?>" class="btn btn-warning btn-sm">Editar</a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
