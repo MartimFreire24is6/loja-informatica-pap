@@ -787,6 +787,15 @@ foreach ($mensagensRecebidas as $m) {
                                                  <?php endif; ?>
                                              </div>
                                          <?php endif; ?>
+                                         <?php if (!empty($enc['metodo_pagamento']) || !empty($enc['detalhes_pagamento'])): ?>
+                                             <div class="small text-muted mb-3">
+                                                 <strong>Pagamento (simulação):</strong>
+                                                 <?= htmlspecialchars((string)($enc['metodo_pagamento'] ?? '—')) ?>
+                                                 <?php if (!empty($enc['detalhes_pagamento'])): ?>
+                                                     — <?= htmlspecialchars((string)$enc['detalhes_pagamento']) ?>
+                                                 <?php endif; ?>
+                                             </div>
+                                         <?php endif; ?>
                                         <form method="POST" class="row g-2 align-items-end mb-3">
                                             <input type="hidden" name="acao" value="estado_encomenda">
                                             <input type="hidden" name="encomenda_id" value="<?= (int)$enc['id'] ?>">

@@ -22,6 +22,8 @@ function garantirTabelasEncomendas(PDO $pdo): void
             cliente_nome VARCHAR(120) NULL,
             cliente_email VARCHAR(160) NULL,
             cliente_morada VARCHAR(255) NULL,
+            metodo_pagamento VARCHAR(60) NULL,
+            detalhes_pagamento VARCHAR(255) NULL,
             total DECIMAL(10,2) NOT NULL,
             estado VARCHAR(30) NOT NULL DEFAULT 'Pendente',
             criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -32,6 +34,8 @@ function garantirTabelasEncomendas(PDO $pdo): void
         'cliente_nome' => 'VARCHAR(120) NULL',
         'cliente_email' => 'VARCHAR(160) NULL',
         'cliente_morada' => 'VARCHAR(255) NULL',
+        'metodo_pagamento' => 'VARCHAR(60) NULL',
+        'detalhes_pagamento' => 'VARCHAR(255) NULL',
     ] as $nomeColuna => $definicaoColuna) {
         $stmtColuna = $pdo->prepare("SHOW COLUMNS FROM encomendas LIKE ?");
         $stmtColuna->execute([$nomeColuna]);

@@ -20,6 +20,16 @@ $tipoAlerta = 'info';
 $clienteNome = '';
 $clienteEmail = '';
 $clienteMorada = '';
+$metodosValidos = [
+    'MB WAY',
+    'Referência Multibanco',
+    'Cartão de Crédito/Débito',
+    'Transferência Bancária',
+];
+$metodoPagamento = '';
+$telemovelMbway = '';
+$titularCartao = '';
+$ultimos4Cartao = '';
 
 // Adicionar produto ao carrinho
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'adicionar') {
@@ -88,12 +98,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'finaliz
     $clienteEmail = is_string($clienteEmail) ? trim($clienteEmail) : '';
     $clienteMorada = $_POST['cliente_morada'] ?? '';
     $clienteMorada = is_string($clienteMorada) ? trim($clienteMorada) : '';
+    $metodoPagamento = $_POST['metodo_pagamento'] ?? '';
+    $metodoPagamento = is_string($metodoPagamento) ? trim($metodoPagamento) : '';
+    $telemovelRaw = $_POST['telemovel_mbway'] ?? '';
+    $telemovelMbway = is_string($telemovelRaw) ? (preg_replace('/\D+/', '', $telemovelRaw) ?? '') : '';
+    $titularCartao = $_POST['titular_cartao'] ?? '';
+    $titularCartao = is_string($titularCartao) ? trim($titularCartao) : '';
+    $ultimos4Raw = $_POST['ultimos4_cartao'] ?? '';
+    $ultimos4Cartao = is_string($ultimos4Raw) ? (preg_replace('/\D+/', '', $ultimos4Raw) ?? '') : '';
 
     if (empty($_SESSION['carrinho'])) {
         $mensagem = "O carrinho está vazio.";
         $tipoAlerta = 'warning';
     } elseif ($clienteNome === '' || !filter_var($clienteEmail, FILTER_VALIDATE_EMAIL)) {
         $mensagem = "Indica o teu nome e um endereço de email válido para concluir a encomenda.";
+        $tipoAlerta = 'danger';
+    } elseif (!in_array($metodoPagamento, $metodosValidos, true)) {
+        $mensagem = "Seleciona um método de pagamento válido.";
+        $tipoAlerta = 'danger';
+    } elseif ($metodoPagamento === 'MB WAY' && strlen($telemovelMbway) !== 9) {
+        $mensagem = "Para MB WAY, indica um número de telemóvel válido com 9 dígitos.";
+        $tipoAlerta = 'danger';
+    } elseif ($metodoPagamento === 'Cartão de Crédito/Débito' && ($titularCartao === '' || mb_strlen($titularCartao, 'UTF-8') > 120 || strlen($ultimos4Cartao) !== 4)) {
+        $mensagem = "Para cartão, indica o nome do titular e os 4 últimos dígitos (simulação).";
         $tipoAlerta = 'danger';
     } else {
         try {
@@ -131,11 +158,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'finaliz
 
             $referencia = 'PAP-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
 
+            $detalhesPagamento = '';
+            if ($metodoPagamento === 'MB WAY') {
+                $mascarado = substr($telemovelMbway, 0, 3) . ' *** ' . substr($telemovelMbway, -3);
+                $detalhesPagamento = "MB WAY ({$mascarado}) — Aguardar confirmação na app";
+            } elseif ($metodoPagamento === 'Referência Multibanco') {
+                $entidade = '11204';
+                $refRaw = str_pad((string)random_int(100000000, 999999999), 9, '0', STR_PAD_LEFT);
+                $refFormatada = substr($refRaw, 0, 3) . ' ' . substr($refRaw, 3, 3) . ' ' . substr($refRaw, 6, 3);
+                $valorFormatado = number_format($totalPago, 2, ',', ' ') . ' €';
+                $detalhesPagamento = "Entidade: {$entidade} | Ref.: {$refFormatada} | Valor: {$valorFormatado}";
+            } elseif ($metodoPagamento === 'Cartão de Crédito/Débito') {
+                $ult4 = substr($ultimos4Cartao, -4);
+                $detalhesPagamento = "Cartão terminado em •••• {$ult4} ({$titularCartao})";
+            } elseif ($metodoPagamento === 'Transferência Bancária') {
+                $detalhesPagamento = "IBAN: PT50 0035 0000 12345678901 44 | Ref.: {$referencia}";
+            }
+
             $stmtEnc = $pdo->prepare("
-                INSERT INTO encomendas (referencia, cliente_nome, cliente_email, cliente_morada, total)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO encomendas (referencia, cliente_nome, cliente_email, cliente_morada, metodo_pagamento, detalhes_pagamento, total)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
-            $stmtEnc->execute([$referencia, $clienteNome, $clienteEmail, $clienteMorada, $totalPago]);
+            $stmtEnc->execute([
+                $referencia,
+                $clienteNome,
+                $clienteEmail,
+                $clienteMorada,
+                $metodoPagamento,
+                $detalhesPagamento,
+                $totalPago,
+            ]);
             $encomendaId = (int)$pdo->lastInsertId();
 
             $stmtItem = $pdo->prepare("
@@ -162,6 +214,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'finaliz
                 'cliente_nome' => $clienteNome,
                 'cliente_email' => $clienteEmail,
                 'cliente_morada' => $clienteMorada,
+                'metodo_pagamento' => $metodoPagamento,
+                'detalhes_pagamento' => $detalhesPagamento,
                 'itens' => $itensResumo,
                 'total' => $totalPago,
             ];
@@ -236,7 +290,7 @@ if (!empty($_SESSION['carrinho'])) {
                 <div class="card-body p-4">
                     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
                         <div>
-                            <span class="badge bg-success mb-2">Encomenda Concluída</span>
+                            <span class="badge bg-success mb-2">Encomenda Registada</span>
                             <h2 class="h4 fw-bold mb-1">Resumo da Encomenda</h2>
                             <div class="text-muted small">
                                 Referência: <strong><?= htmlspecialchars($ultimaEncomenda['referencia']) ?></strong> •
@@ -245,6 +299,17 @@ if (!empty($_SESSION['carrinho'])) {
                         </div>
                         <a href="carrinho.php?limpar_recibo=1" class="btn btn-outline-secondary btn-sm">Fechar Resumo</a>
                     </div>
+
+                    <?php if (!empty($ultimaEncomenda['metodo_pagamento'])): ?>
+                        <div class="alert alert-info">
+                            <strong>Pagamento (simulação):</strong>
+                            <?= htmlspecialchars((string)$ultimaEncomenda['metodo_pagamento']) ?>
+                            <?php if (!empty($ultimaEncomenda['detalhes_pagamento'])): ?>
+                                <br><?= htmlspecialchars((string)$ultimaEncomenda['detalhes_pagamento']) ?>
+                            <?php endif; ?>
+                            <div class="small mt-1">Nenhuma transação real foi processada.</div>
+                        </div>
+                    <?php endif; ?>
 
                     <div class="table-responsive">
                         <table class="table align-middle mb-3">
@@ -271,7 +336,7 @@ if (!empty($_SESSION['carrinho'])) {
                             </tbody>
                             <tfoot>
                                 <tr>
-                                    <th colspan="3" class="text-end fs-6">Total Pago:</th>
+                                    <th colspan="3" class="text-end fs-6">Total da Encomenda:</th>
                                     <th class="text-end fs-5 text-success">
                                         <?= number_format((float)$ultimaEncomenda['total'], 2, ',', ' ') ?> €
                                     </th>
@@ -353,6 +418,36 @@ if (!empty($_SESSION['carrinho'])) {
                         <label for="cliente_morada" class="form-label">Morada de Entrega / Notas (opcional)</label>
                         <input type="text" id="cliente_morada" name="cliente_morada" class="form-control" maxlength="255" placeholder="Rua, código postal, localidade..." value="<?= htmlspecialchars($clienteMorada) ?>">
                     </div>
+                    <div class="col-md-6">
+                        <label for="metodo_pagamento" class="form-label">Método de Pagamento *</label>
+                        <select id="metodo_pagamento" name="metodo_pagamento" class="form-select" required>
+                            <option value="">Escolhe uma opção...</option>
+                            <?php foreach ($metodosValidos as $metodoOpcao): ?>
+                                <option value="<?= htmlspecialchars($metodoOpcao) ?>" <?= $metodoPagamento === $metodoOpcao ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($metodoOpcao) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-6 d-none" id="box-mbway">
+                        <label for="telemovel_mbway" class="form-label">Telemóvel MB WAY (9 dígitos) *</label>
+                        <input type="tel" id="telemovel_mbway" name="telemovel_mbway" class="form-control" maxlength="12" inputmode="tel" placeholder="912345678" value="<?= htmlspecialchars($telemovelMbway) ?>" disabled>
+                    </div>
+                    <div class="col-12 d-none" id="box-cartao">
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label for="titular_cartao" class="form-label">Titular do Cartão (simulação) *</label>
+                                <input type="text" id="titular_cartao" name="titular_cartao" class="form-control" maxlength="120" placeholder="Nome como consta no cartão" value="<?= htmlspecialchars($titularCartao) ?>" disabled>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="ultimos4_cartao" class="form-label">4 Últimos Dígitos *</label>
+                                <input type="text" id="ultimos4_cartao" name="ultimos4_cartao" class="form-control" maxlength="4" inputmode="numeric" placeholder="4242" value="<?= htmlspecialchars($ultimos4Cartao) ?>" disabled>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <p class="small text-muted mb-0">Modo de demonstração: os pagamentos não são processados nem confirmados por um serviço bancário.</p>
+                    </div>
                 </div>
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 pt-2 border-top">
                     <div>
@@ -366,5 +461,37 @@ if (!empty($_SESSION['carrinho'])) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const selectMetodo = document.getElementById('metodo_pagamento');
+            const boxMbway = document.getElementById('box-mbway');
+            const boxCartao = document.getElementById('box-cartao');
+            const telemovelMbway = document.getElementById('telemovel_mbway');
+            const titularCartao = document.getElementById('titular_cartao');
+            const ultimos4Cartao = document.getElementById('ultimos4_cartao');
+
+            function atualizarCamposPagamento() {
+                if (!selectMetodo || !boxMbway || !boxCartao) {
+                    return;
+                }
+
+                const usaMbway = selectMetodo.value === 'MB WAY';
+                const usaCartao = selectMetodo.value === 'Cartão de Crédito/Débito';
+                boxMbway.classList.toggle('d-none', !usaMbway);
+                boxCartao.classList.toggle('d-none', !usaCartao);
+                telemovelMbway.disabled = !usaMbway;
+                telemovelMbway.required = usaMbway;
+                titularCartao.disabled = !usaCartao;
+                titularCartao.required = usaCartao;
+                ultimos4Cartao.disabled = !usaCartao;
+                ultimos4Cartao.required = usaCartao;
+            }
+
+            if (selectMetodo) {
+                selectMetodo.addEventListener('change', atualizarCamposPagamento);
+                atualizarCamposPagamento();
+            }
+        });
+    </script>
 </body>
 </html>
