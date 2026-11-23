@@ -77,13 +77,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'remover
     unset($_SESSION['carrinho'][$id]);
 }
 
-// Finalizar compra (desconta stock com transação PDO)
+// Finalizar compra (desconta stock, grava encomenda e itens com transação PDO)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'finalizar') {
     if (empty($_SESSION['carrinho'])) {
         $mensagem = "O carrinho está vazio.";
         $tipoAlerta = 'warning';
     } else {
         try {
+            if (function_exists('garantirTabelasEncomendas')) {
+                garantirTabelasEncomendas($pdo);
+            }
+
             $pdo->beginTransaction();
             $itensResumo = [];
             $totalPago = 0.0;
@@ -104,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'finaliz
                 $subtotal = $preco * $qtd;
                 $totalPago += $subtotal;
                 $itensResumo[] = [
+                    'produto_id' => (int)$prod['id'],
                     'nome' => $prod['nome'],
                     'marca' => $prod['marca'],
                     'preco' => $preco,
@@ -116,6 +121,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'finaliz
             }
 
             $referencia = 'PAP-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
+
+            $stmtEnc = $pdo->prepare("INSERT INTO encomendas (referencia, total) VALUES (?, ?)");
+            $stmtEnc->execute([$referencia, $totalPago]);
+            $encomendaId = (int)$pdo->lastInsertId();
+
+            $stmtItem = $pdo->prepare("
+                INSERT INTO itens_encomenda (encomenda_id, produto_id, nome_produto, marca, preco_unitario, quantidade, subtotal)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
+
+            foreach ($itensResumo as $linha) {
+                $stmtItem->execute([
+                    $encomendaId,
+                    $linha['produto_id'],
+                    $linha['nome'],
+                    $linha['marca'],
+                    $linha['preco'],
+                    $linha['qtd'],
+                    $linha['subtotal'],
+                ]);
+            }
+
             $pdo->commit();
             $_SESSION['ultima_encomenda'] = [
                 'referencia' => $referencia,

@@ -6,6 +6,10 @@ if (empty($_SESSION['admin_logado'])) {
 }
 require_once 'db.php';
 
+if (function_exists('garantirTabelasEncomendas')) {
+    garantirTabelasEncomendas($pdo);
+}
+
 $mensagem = '';
 $tipoAlerta = 'success';
 
@@ -60,6 +64,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'apagar'
 // Buscar categorias e produtos para listar na página
 $categorias = $pdo->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
 $produtos   = $pdo->query("SELECT p.*, c.nome AS categoria_nome FROM produtos p JOIN categorias c ON p.categoria_id = c.id ORDER BY p.id DESC")->fetchAll();
+
+// Buscar encomendas e respetivos itens
+$encomendas = $pdo->query("SELECT * FROM encomendas ORDER BY id DESC")->fetchAll();
+$itensPorEncomenda = [];
+if (!empty($encomendas)) {
+    $stmtItens = $pdo->query("SELECT * FROM itens_encomenda ORDER BY id ASC");
+    foreach ($stmtItens->fetchAll() as $it) {
+        $itensPorEncomenda[(int)$it['encomenda_id']][] = $it;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt">
@@ -82,7 +96,7 @@ $produtos   = $pdo->query("SELECT p.*, c.nome AS categoria_nome FROM produtos p 
     </nav>
 
     <div class="container mb-5">
-        <h2 class="fw-bold mb-3">Painel de Administração de Produtos</h2>
+        <h2 class="fw-bold mb-3">Painel de Administração</h2>
 
         <?php if ($mensagem !== ''): ?>
             <div class="alert alert-<?= $tipoAlerta ?> alert-dismissible fade show" role="alert">
@@ -147,7 +161,7 @@ $produtos   = $pdo->query("SELECT p.*, c.nome AS categoria_nome FROM produtos p 
         </div>
 
         <!-- Tabela de Gestão de Stock e Produtos -->
-        <div class="card shadow-sm">
+        <div class="card shadow-sm mb-4">
             <div class="card-header bg-dark text-white fw-bold">
                 Catálogo Atual (<?= count($produtos) ?> produtos)
             </div>
@@ -194,6 +208,67 @@ $produtos   = $pdo->query("SELECT p.*, c.nome AS categoria_nome FROM produtos p 
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Encomendas Realizadas -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white fw-bold">
+                📦 Encomendas Realizadas (<?= count($encomendas) ?>)
+            </div>
+            <div class="card-body">
+                <?php if (empty($encomendas)): ?>
+                    <p class="text-muted mb-0">Ainda não existem encomendas registadas.</p>
+                <?php else: ?>
+                    <div class="accordion" id="accordionEncomendas">
+                        <?php foreach ($encomendas as $idx => $enc): ?>
+                            <?php $linhas = $itensPorEncomenda[(int)$enc['id']] ?? []; ?>
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button <?= $idx > 0 ? 'collapsed' : '' ?>" type="button"
+                                            data-bs-toggle="collapse" data-bs-target="#enc<?= (int)$enc['id'] ?>">
+                                        <span class="fw-bold me-2"><?= htmlspecialchars($enc['referencia']) ?></span>
+                                        <span class="text-muted small me-3">
+                                            <?= htmlspecialchars(date('d/m/Y H:i', strtotime($enc['criado_em']))) ?>
+                                        </span>
+                                        <span class="badge bg-success ms-auto me-2">
+                                            <?= number_format((float)$enc['total'], 2, ',', ' ') ?> €
+                                        </span>
+                                    </button>
+                                </h2>
+                                <div id="enc<?= (int)$enc['id'] ?>" class="accordion-collapse collapse <?= $idx === 0 ? 'show' : '' ?>"
+                                     data-bs-parent="#accordionEncomendas">
+                                    <div class="accordion-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm align-middle mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Produto</th>
+                                                        <th>Marca</th>
+                                                        <th class="text-center">Qtd.</th>
+                                                        <th class="text-end">Preço Unit.</th>
+                                                        <th class="text-end">Subtotal</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php foreach ($linhas as $l): ?>
+                                                        <tr>
+                                                            <td><?= htmlspecialchars($l['nome_produto']) ?></td>
+                                                            <td><?= htmlspecialchars($l['marca']) ?></td>
+                                                            <td class="text-center"><?= (int)$l['quantidade'] ?></td>
+                                                            <td class="text-end"><?= number_format((float)$l['preco_unitario'], 2, ',', ' ') ?> €</td>
+                                                            <td class="text-end fw-semibold"><?= number_format((float)$l['subtotal'], 2, ',', ' ') ?> €</td>
+                                                        </tr>
+                                                    <?php endforeach; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
