@@ -1,5 +1,14 @@
 <?php
 session_start();
+
+if (isset($_GET['limpar_recibo'])) {
+    unset($_SESSION['ultima_encomenda']);
+    header('Location: carrinho.php');
+    exit;
+}
+
+$ultimaEncomenda = $_SESSION['ultima_encomenda'] ?? null;
+
 require_once 'db.php';
 
 if (!isset($_SESSION['carrinho']) || !is_array($_SESSION['carrinho'])) {
@@ -76,12 +85,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'finaliz
     } else {
         try {
             $pdo->beginTransaction();
+            $itensResumo = [];
+            $totalPago = 0.0;
 
             foreach ($_SESSION['carrinho'] as $prodId => $qtd) {
                 $prodId = (int)$prodId;
                 $qtd    = (int)$qtd;
 
-                $stmt = $pdo->prepare("SELECT id, nome, stock FROM produtos WHERE id = ? FOR UPDATE");
+                $stmt = $pdo->prepare("SELECT id, nome, marca, preco, stock FROM produtos WHERE id = ? FOR UPDATE");
                 $stmt->execute([$prodId]);
                 $prod = $stmt->fetch();
 
@@ -89,14 +100,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'finaliz
                     throw new Exception("Stock insuficiente para «" . ($prod['nome'] ?? "Produto #{$prodId}") . "».");
                 }
 
+                $preco = (float)$prod['preco'];
+                $subtotal = $preco * $qtd;
+                $totalPago += $subtotal;
+                $itensResumo[] = [
+                    'nome' => $prod['nome'],
+                    'marca' => $prod['marca'],
+                    'preco' => $preco,
+                    'qtd' => $qtd,
+                    'subtotal' => $subtotal,
+                ];
+
                 $upd = $pdo->prepare("UPDATE produtos SET stock = stock - ? WHERE id = ?");
                 $upd->execute([$qtd, $prodId]);
             }
 
+            $referencia = 'PAP-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
             $pdo->commit();
-            $_SESSION['carrinho'] = [];
-            $mensagem = "Compra finalizada com sucesso! O stock foi atualizado na base de dados.";
-            $tipoAlerta = 'success';
+            $_SESSION['ultima_encomenda'] = [
+                'referencia' => $referencia,
+                'data' => date('d/m/Y H:i'),
+                'itens' => $itensResumo,
+                'total' => $totalPago,
+            ];
+            unset($_SESSION['carrinho']);
+            header('Location: carrinho.php?sucesso=1');
+            exit;
         } catch (Exception $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -160,7 +189,62 @@ if (!empty($_SESSION['carrinho'])) {
             </div>
         <?php endif; ?>
 
-        <?php if (empty($itensCarrinho)): ?>
+        <?php if (empty($itensCarrinho) && $ultimaEncomenda): ?>
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                        <div>
+                            <span class="badge bg-success mb-2">Encomenda Concluída</span>
+                            <h2 class="h4 fw-bold mb-1">Resumo da Encomenda</h2>
+                            <div class="text-muted small">
+                                Referência: <strong><?= htmlspecialchars($ultimaEncomenda['referencia']) ?></strong> •
+                                Data: <strong><?= htmlspecialchars($ultimaEncomenda['data']) ?></strong>
+                            </div>
+                        </div>
+                        <a href="carrinho.php?limpar_recibo=1" class="btn btn-outline-secondary btn-sm">Fechar Resumo</a>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-3">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Produto</th>
+                                    <th class="text-center">Qtd.</th>
+                                    <th class="text-end">Preço Unit.</th>
+                                    <th class="text-end">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($ultimaEncomenda['itens'] as $linha): ?>
+                                    <tr>
+                                        <td>
+                                            <div class="fw-semibold"><?= htmlspecialchars($linha['nome']) ?></div>
+                                            <small class="text-muted"><?= htmlspecialchars($linha['marca']) ?></small>
+                                        </td>
+                                        <td class="text-center"><?= (int)$linha['qtd'] ?></td>
+                                        <td class="text-end"><?= number_format((float)$linha['preco'], 2, ',', ' ') ?> €</td>
+                                        <td class="text-end fw-semibold"><?= number_format((float)$linha['subtotal'], 2, ',', ' ') ?> €</td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th colspan="3" class="text-end fs-6">Total Pago:</th>
+                                    <th class="text-end fs-5 text-success">
+                                        <?= number_format((float)$ultimaEncomenda['total'], 2, ',', ' ') ?> €
+                                    </th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="catalogo.php" class="btn btn-primary">Continuar a Comprar</a>
+                        <a href="index.php" class="btn btn-outline-dark">Voltar ao Início</a>
+                    </div>
+                </div>
+            </div>
+        <?php elseif (empty($itensCarrinho)): ?>
             <div class="card shadow-sm p-4 text-center">
                 <p class="text-muted mb-3">O teu carrinho está vazio de momento.</p>
                 <div>
