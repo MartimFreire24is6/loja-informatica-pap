@@ -5,6 +5,7 @@ if (empty($_SESSION['admin_logado'])) {
     exit;
 }
 require_once 'db.php';
+garantirTabelaMensagens($pdo);
 
 $mensagem = '';
 $tipoAlerta = 'success';
@@ -148,6 +149,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'estado_
     }
 }
 
+// Marcar mensagem como lida ou por ler
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'alternar_lida') {
+    $msgId = (int)($_POST['mensagem_id'] ?? 0);
+    if ($msgId > 0) {
+        $stmt = $pdo->prepare("UPDATE mensagens SET lida = IF(lida = 1, 0, 1) WHERE id = ?");
+        $stmt->execute([$msgId]);
+        $mensagem = "Estado de leitura da mensagem #{$msgId} atualizado.";
+        $tipoAlerta = 'info';
+    }
+}
+
+// Apagar mensagem
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'apagar_mensagem') {
+    $msgId = (int)($_POST['mensagem_id'] ?? 0);
+    if ($msgId > 0) {
+        $stmt = $pdo->prepare("DELETE FROM mensagens WHERE id = ?");
+        $stmt->execute([$msgId]);
+        $mensagem = "Mensagem #{$msgId} removida.";
+        $tipoAlerta = 'warning';
+    }
+}
+
 // Buscar categorias e produtos para listar na página
 $categorias = $pdo->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
 $produtos   = $pdo->query("SELECT p.*, c.nome AS categoria_nome FROM produtos p JOIN categorias c ON p.categoria_id = c.id ORDER BY p.id DESC")->fetchAll();
@@ -166,6 +189,16 @@ if (!empty($encomendas)) {
     $stmtItens = $pdo->query("SELECT * FROM itens_encomenda ORDER BY id ASC");
     foreach ($stmtItens->fetchAll() as $it) {
         $itensPorEncomenda[(int)$it['encomenda_id']][] = $it;
+    }
+}
+
+// Buscar mensagens recebidas
+$mensagensRecebidas = [];
+$mensagensNaoLidas = 0;
+$mensagensRecebidas = $pdo->query("SELECT * FROM mensagens ORDER BY id DESC")->fetchAll();
+foreach ($mensagensRecebidas as $m) {
+    if ((int)$m['lida'] === 0) {
+        $mensagensNaoLidas++;
     }
 }
 ?>
@@ -395,7 +428,7 @@ if (!empty($encomendas)) {
         </div>
 
         <!-- Encomendas Realizadas -->
-        <div class="card shadow-sm">
+        <div class="card shadow-sm mb-4">
             <div class="card-header bg-dark text-white fw-bold">
                 📦 Encomendas Realizadas (<?= count($encomendas) ?>)
             </div>
@@ -468,6 +501,57 @@ if (!empty($encomendas)) {
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Mensagens Recebidas -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center">
+                <span>✉️ Mensagens Recebidas (<?= count($mensagensRecebidas) ?>)</span>
+                <?php if ($mensagensNaoLidas > 0): ?>
+                    <span class="badge bg-warning text-dark"><?= (int)$mensagensNaoLidas ?> por ler</span>
+                <?php endif; ?>
+            </div>
+            <div class="card-body">
+                <?php if (empty($mensagensRecebidas)): ?>
+                    <p class="text-muted mb-0">Ainda não foram recebidas mensagens através do formulário de contacto.</p>
+                <?php else: ?>
+                    <div class="d-flex flex-column gap-3">
+                        <?php foreach ($mensagensRecebidas as $msg): ?>
+                            <?php $estaLida = (int)$msg['lida'] === 1; ?>
+                            <div class="border rounded p-3 <?= $estaLida ? 'bg-light' : 'bg-white border-primary' ?>">
+                                <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+                                    <div>
+                                        <span class="badge <?= $estaLida ? 'bg-secondary' : 'bg-primary' ?> me-2">
+                                            <?= $estaLida ? 'Lida' : 'Nova' ?>
+                                        </span>
+                                        <strong><?= htmlspecialchars($msg['assunto']) ?></strong>
+                                        <div class="small text-muted mt-1">
+                                            De <strong><?= htmlspecialchars($msg['nome']) ?></strong>
+                                            (<?= htmlspecialchars($msg['email']) ?>) •
+                                            <?= htmlspecialchars(date('d/m/Y H:i', strtotime($msg['criado_em']))) ?>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-1">
+                                        <form method="POST" class="d-inline">
+                                            <input type="hidden" name="acao" value="alternar_lida">
+                                            <input type="hidden" name="mensagem_id" value="<?= (int)$msg['id'] ?>">
+                                            <button type="submit" class="btn btn-outline-primary btn-sm">
+                                                <?= $estaLida ? 'Marcar por ler' : 'Marcar como lida' ?>
+                                            </button>
+                                        </form>
+                                        <form method="POST" class="d-inline" onsubmit="return confirm('Apagar esta mensagem?');">
+                                            <input type="hidden" name="acao" value="apagar_mensagem">
+                                            <input type="hidden" name="mensagem_id" value="<?= (int)$msg['id'] ?>">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm">Apagar</button>
+                                        </form>
+                                    </div>
+                                </div>
+                                <p class="mb-0"><?= nl2br(htmlspecialchars($msg['mensagem'])) ?></p>
                             </div>
                         <?php endforeach; ?>
                     </div>

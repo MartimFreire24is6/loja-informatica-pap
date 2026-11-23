@@ -27,6 +27,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($erros)) {
+        garantirTabelaMensagens($pdo);
+        $stmtMsg = $pdo->prepare("
+            INSERT INTO mensagens (nome, email, assunto, mensagem)
+            VALUES (?, ?, ?, ?)
+        ");
+        $stmtMsg->execute([$nome, $email, $assunto, $mensagem]);
+
         $enviado = true;
         $nome = '';
         $email = '';
