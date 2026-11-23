@@ -1,4 +1,9 @@
 <?php
+session_start();
+if (empty($_SESSION['admin_logado'])) {
+    header('Location: login.php');
+    exit;
+}
 require_once 'db.php';
 
 $mensagem = '';
@@ -71,6 +76,7 @@ $produtos   = $pdo->query("SELECT p.*, c.nome AS categoria_nome FROM produtos p 
             <a class="navbar-brand fw-bold" href="index.php">🖥️ TechStore PAP</a>
             <div class="d-flex">
                 <a href="index.php" class="btn btn-outline-light btn-sm">← Voltar à Loja</a>
+                <a href="logout.php" class="btn btn-outline-danger btn-sm ms-2">Sair</a>
             </div>
         </div>
     </nav>
