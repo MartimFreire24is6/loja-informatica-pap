@@ -136,14 +136,18 @@ $produtos = $stmtProd->fetchAll();
             <?php else: ?>
                 <?php foreach ($produtos as $prod): ?>
                     <div class="col">
-                        <div class="card h-100 shadow-sm">
+                        <div class="card h-100 shadow-sm position-relative">
                             <img src="<?= htmlspecialchars($prod['imagem']) ?>" class="card-img-top" alt="<?= htmlspecialchars($prod['nome']) ?>">
                             <div class="card-body d-flex flex-column">
                                 <div class="mb-2">
                                     <span class="badge bg-secondary"><?= htmlspecialchars($prod['categoria_nome']) ?></span>
                                     <span class="badge bg-info text-dark"><?= htmlspecialchars($prod['marca']) ?></span>
                                 </div>
-                                <h5 class="card-title"><?= htmlspecialchars($prod['nome']) ?></h5>
+                                <h5 class="card-title">
+                                    <a href="produto.php?id=<?= (int)$prod['id'] ?>" class="text-decoration-none text-dark stretched-link">
+                                        <?= htmlspecialchars($prod['nome']) ?>
+                                    </a>
+                                </h5>
                                 <p class="card-text text-muted small flex-grow-1"><?= htmlspecialchars($prod['descricao']) ?></p>
                                 <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
                                     <span class="fs-5 fw-bold text-success"><?= number_format($prod['preco'], 2, ',', ' ') ?> €</span>
@@ -151,7 +155,7 @@ $produtos = $stmtProd->fetchAll();
                                         <?= $prod['stock'] > 0 ? "Stock: {$prod['stock']} un." : 'Esgotado' ?>
                                     </span>
                                 </div>
-                                <form method="POST" action="carrinho.php" class="mt-3">
+                                <form method="POST" action="carrinho.php" class="mt-3 position-relative" style="z-index: 2;">
                                     <input type="hidden" name="acao" value="adicionar">
                                     <input type="hidden" name="id" value="<?= (int)$prod['id'] ?>">
                                     <button type="submit" class="btn btn-primary btn-sm w-100" <?= ((int)$prod['stock'] <= 0) ? 'disabled' : '' ?>>

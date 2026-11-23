@@ -94,7 +94,7 @@ $destaques  = $pdo->query("
         <div class="row row-cols-1 row-cols-md-3 g-4">
             <?php foreach ($destaques as $prod): ?>
                 <div class="col">
-                    <div class="card h-100 shadow-sm border-0">
+                    <div class="card h-100 shadow-sm border-0 position-relative">
                         <?php if (!empty($prod['imagem'])): ?>
                             <img src="<?= htmlspecialchars($prod['imagem']) ?>" class="card-img-top" alt="<?= htmlspecialchars($prod['nome']) ?>" style="height: 200px; object-fit: cover;">
                         <?php endif; ?>
@@ -103,13 +103,17 @@ $destaques  = $pdo->query("
                                 <span class="badge bg-secondary"><?= htmlspecialchars($prod['categoria_nome']) ?></span>
                                 <span class="badge bg-info text-dark"><?= htmlspecialchars($prod['marca']) ?></span>
                             </div>
-                            <h5 class="card-title"><?= htmlspecialchars($prod['nome']) ?></h5>
+                            <h5 class="card-title">
+                                <a href="produto.php?id=<?= (int)$prod['id'] ?>" class="text-decoration-none text-dark stretched-link">
+                                    <?= htmlspecialchars($prod['nome']) ?>
+                                </a>
+                            </h5>
                             <p class="card-text text-muted small flex-grow-1"><?= htmlspecialchars($prod['descricao']) ?></p>
                             <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
                                 <span class="fs-5 fw-bold text-success"><?= number_format((float)$prod['preco'], 2, ',', ' ') ?> €</span>
                                 <small class="text-muted">Stock: <?= (int)$prod['stock'] ?> un.</small>
                             </div>
-                            <form method="POST" action="carrinho.php" class="mt-3">
+                            <form method="POST" action="carrinho.php" class="mt-3 position-relative" style="z-index: 2;">
                                 <input type="hidden" name="acao" value="adicionar">
                                 <input type="hidden" name="id" value="<?= (int)$prod['id'] ?>">
                                 <button type="submit" class="btn btn-primary btn-sm w-100">+ Adicionar ao Carrinho</button>
