@@ -19,11 +19,26 @@ function garantirTabelasEncomendas(PDO $pdo): void
         CREATE TABLE IF NOT EXISTS encomendas (
             id INT AUTO_INCREMENT PRIMARY KEY,
             referencia VARCHAR(40) NOT NULL UNIQUE,
+            cliente_nome VARCHAR(120) NULL,
+            cliente_email VARCHAR(160) NULL,
+            cliente_morada VARCHAR(255) NULL,
             total DECIMAL(10,2) NOT NULL,
             estado VARCHAR(30) NOT NULL DEFAULT 'Pendente',
             criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     ");
+
+    foreach ([
+        'cliente_nome' => 'VARCHAR(120) NULL',
+        'cliente_email' => 'VARCHAR(160) NULL',
+        'cliente_morada' => 'VARCHAR(255) NULL',
+    ] as $nomeColuna => $definicaoColuna) {
+        $stmtColuna = $pdo->prepare("SHOW COLUMNS FROM encomendas LIKE ?");
+        $stmtColuna->execute([$nomeColuna]);
+        if (!$stmtColuna->fetch()) {
+            $pdo->exec("ALTER TABLE encomendas ADD COLUMN {$nomeColuna} {$definicaoColuna}");
+        }
+    }
 
     $colunaEstado = $pdo->query("SHOW COLUMNS FROM encomendas LIKE 'estado'")->fetch();
     if (!$colunaEstado) {

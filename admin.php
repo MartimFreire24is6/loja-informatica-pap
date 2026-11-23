@@ -174,6 +174,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'apagar_
 // Buscar categorias e produtos para listar na página
 $categorias = $pdo->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
 $produtos   = $pdo->query("SELECT p.*, c.nome AS categoria_nome FROM produtos p JOIN categorias c ON p.categoria_id = c.id ORDER BY p.id DESC")->fetchAll();
+$produtosStockBaixo = 0;
+foreach ($produtos as $p) {
+    if ((int)$p['stock'] <= 2) {
+        $produtosStockBaixo++;
+    }
+}
 $produtoEditar = null;
 $editarId = (int)($_GET['editar_id'] ?? 0);
 if ($editarId > 0) {
@@ -224,6 +230,45 @@ foreach ($mensagensRecebidas as $m) {
 
     <div class="container mb-5">
         <h2 class="fw-bold mb-3">Painel de Administração</h2>
+
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Produtos no Catálogo</div>
+                        <div class="fs-3 fw-bold"><?= count($produtos) ?></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Stock Baixo / Esgotado (≤ 2)</div>
+                        <div class="fs-3 fw-bold <?= $produtosStockBaixo > 0 ? 'text-warning' : 'text-success' ?>">
+                            <?= (int)$produtosStockBaixo ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Encomendas</div>
+                        <div class="fs-3 fw-bold"><?= count($encomendas) ?></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Mensagens por Ler</div>
+                        <div class="fs-3 fw-bold <?= $mensagensNaoLidas > 0 ? 'text-primary' : 'text-secondary' ?>">
+                            <?= (int)$mensagensNaoLidas ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <?php if ($mensagem !== ''): ?>
             <div class="alert alert-<?= $tipoAlerta ?> alert-dismissible fade show" role="alert">
@@ -491,6 +536,17 @@ foreach ($mensagensRecebidas as $m) {
                                 <div id="enc<?= (int)$enc['id'] ?>" class="accordion-collapse collapse <?= $idx === 0 ? 'show' : '' ?>"
                                      data-bs-parent="#accordionEncomendas">
                                     <div class="accordion-body">
+                                         <?php if (!empty($enc['cliente_nome']) || !empty($enc['cliente_email'])): ?>
+                                             <div class="small text-muted mb-3">
+                                                 <strong>Cliente:</strong> <?= htmlspecialchars((string)($enc['cliente_nome'] ?? '—')) ?>
+                                                 <?php if (!empty($enc['cliente_email'])): ?>
+                                                     (<?= htmlspecialchars($enc['cliente_email']) ?>)
+                                                 <?php endif; ?>
+                                                 <?php if (!empty($enc['cliente_morada'])): ?>
+                                                     • <strong>Morada:</strong> <?= htmlspecialchars($enc['cliente_morada']) ?>
+                                                 <?php endif; ?>
+                                             </div>
+                                         <?php endif; ?>
                                         <form method="POST" class="row g-2 align-items-end mb-3">
                                             <input type="hidden" name="acao" value="estado_encomenda">
                                             <input type="hidden" name="encomenda_id" value="<?= (int)$enc['id'] ?>">

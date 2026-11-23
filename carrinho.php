@@ -17,6 +17,9 @@ if (!isset($_SESSION['carrinho']) || !is_array($_SESSION['carrinho'])) {
 
 $mensagem = '';
 $tipoAlerta = 'info';
+$clienteNome = '';
+$clienteEmail = '';
+$clienteMorada = '';
 
 // Adicionar produto ao carrinho
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'adicionar') {
@@ -79,9 +82,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'remover
 
 // Finalizar compra (desconta stock, grava encomenda e itens com transação PDO)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'finalizar') {
+    $clienteNome = $_POST['cliente_nome'] ?? '';
+    $clienteNome = is_string($clienteNome) ? trim($clienteNome) : '';
+    $clienteEmail = $_POST['cliente_email'] ?? '';
+    $clienteEmail = is_string($clienteEmail) ? trim($clienteEmail) : '';
+    $clienteMorada = $_POST['cliente_morada'] ?? '';
+    $clienteMorada = is_string($clienteMorada) ? trim($clienteMorada) : '';
+
     if (empty($_SESSION['carrinho'])) {
         $mensagem = "O carrinho está vazio.";
         $tipoAlerta = 'warning';
+    } elseif ($clienteNome === '' || !filter_var($clienteEmail, FILTER_VALIDATE_EMAIL)) {
+        $mensagem = "Indica o teu nome e um endereço de email válido para concluir a encomenda.";
+        $tipoAlerta = 'danger';
     } else {
         try {
             $pdo->beginTransaction();
@@ -118,8 +131,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'finaliz
 
             $referencia = 'PAP-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
 
-            $stmtEnc = $pdo->prepare("INSERT INTO encomendas (referencia, total) VALUES (?, ?)");
-            $stmtEnc->execute([$referencia, $totalPago]);
+            $stmtEnc = $pdo->prepare("
+                INSERT INTO encomendas (referencia, cliente_nome, cliente_email, cliente_morada, total)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+            $stmtEnc->execute([$referencia, $clienteNome, $clienteEmail, $clienteMorada, $totalPago]);
             $encomendaId = (int)$pdo->lastInsertId();
 
             $stmtItem = $pdo->prepare("
@@ -143,6 +159,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'finaliz
             $_SESSION['ultima_encomenda'] = [
                 'referencia' => $referencia,
                 'data' => date('d/m/Y H:i'),
+                'cliente_nome' => $clienteNome,
+                'cliente_email' => $clienteEmail,
+                'cliente_morada' => $clienteMorada,
                 'itens' => $itensResumo,
                 'total' => $totalPago,
             ];
@@ -318,16 +337,31 @@ if (!empty($_SESSION['carrinho'])) {
                 </div>
             </div>
 
-            <div class="d-flex flex-wrap justify-content-between align-items-center bg-white p-4 rounded shadow-sm gap-3">
-                <div>
-                    <span class="text-muted">Total da Encomenda:</span>
-                    <span class="fs-4 fw-bold text-success ms-2"><?= number_format($totalGeral, 2, ',', ' ') ?> €</span>
+            <form method="POST" class="bg-white p-4 rounded shadow-sm">
+                <input type="hidden" name="acao" value="finalizar">
+                <h3 class="h5 fw-bold mb-3">Dados para a Encomenda</h3>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label for="cliente_nome" class="form-label">Nome Completo *</label>
+                        <input type="text" id="cliente_nome" name="cliente_nome" class="form-control" maxlength="120" value="<?= htmlspecialchars($clienteNome) ?>" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="cliente_email" class="form-label">Email *</label>
+                        <input type="email" id="cliente_email" name="cliente_email" class="form-control" maxlength="160" value="<?= htmlspecialchars($clienteEmail) ?>" required>
+                    </div>
+                    <div class="col-12">
+                        <label for="cliente_morada" class="form-label">Morada de Entrega / Notas (opcional)</label>
+                        <input type="text" id="cliente_morada" name="cliente_morada" class="form-control" maxlength="255" placeholder="Rua, código postal, localidade..." value="<?= htmlspecialchars($clienteMorada) ?>">
+                    </div>
                 </div>
-                <form method="POST">
-                    <input type="hidden" name="acao" value="finalizar">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 pt-2 border-top">
+                    <div>
+                        <span class="text-muted">Total da Encomenda:</span>
+                        <span class="fs-4 fw-bold text-success ms-2"><?= number_format($totalGeral, 2, ',', ' ') ?> €</span>
+                    </div>
                     <button type="submit" class="btn btn-success btn-lg">Finalizar Compra</button>
-                </form>
-            </div>
+                </div>
+            </form>
         <?php endif; ?>
     </div>
 
