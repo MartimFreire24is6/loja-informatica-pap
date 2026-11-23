@@ -6,12 +6,52 @@ if (empty($_SESSION['admin_logado'])) {
 }
 require_once 'db.php';
 
-if (function_exists('garantirTabelasEncomendas')) {
-    garantirTabelasEncomendas($pdo);
-}
-
 $mensagem = '';
 $tipoAlerta = 'success';
+$estadosValidos = ['Pendente', 'Em preparação', 'Enviada', 'Concluída'];
+
+// Criar nova categoria
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'criar_categoria') {
+    $nomeCat = $_POST['nome_categoria'] ?? '';
+    $nomeCat = is_string($nomeCat) ? trim($nomeCat) : '';
+    if ($nomeCat !== '') {
+        $stmtCat = $pdo->prepare("SELECT id FROM categorias WHERE nome = ? LIMIT 1");
+        $stmtCat->execute([$nomeCat]);
+
+        if ($stmtCat->fetch()) {
+            $mensagem = "A categoria «{$nomeCat}» já existe.";
+            $tipoAlerta = 'info';
+        } else {
+            $nomeParaSlug = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $nomeCat);
+            $slugBase = strtolower($nomeParaSlug !== false ? $nomeParaSlug : $nomeCat);
+            $slugBase = trim((string)preg_replace('/[^a-z0-9]+/', '-', $slugBase), '-');
+            if ($slugBase === '') {
+                $slugBase = 'categoria';
+            }
+
+            $stmtSlug = $pdo->prepare("SELECT id FROM categorias WHERE slug = ? LIMIT 1");
+            $slug = substr($slugBase, 0, 100);
+            $sufixo = 1;
+            while (true) {
+                $stmtSlug->execute([$slug]);
+                if (!$stmtSlug->fetch()) {
+                    break;
+                }
+
+                $parteSufixo = '-' . $sufixo++;
+                $slug = substr($slugBase, 0, 100 - strlen($parteSufixo)) . $parteSufixo;
+            }
+
+            $stmtCat = $pdo->prepare("INSERT INTO categorias (nome, slug) VALUES (?, ?)");
+            $stmtCat->execute([$nomeCat, $slug]);
+            $mensagem = "Categoria «{$nomeCat}» guardada!";
+            $tipoAlerta = 'success';
+        }
+    } else {
+        $mensagem = "Indica um nome para a categoria.";
+        $tipoAlerta = 'danger';
+    }
+}
 
 // 1. Adicionar novo produto (CREATE)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'adicionar') {
@@ -61,6 +101,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'apagar'
     }
 }
 
+// Atualizar estado de encomenda
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'estado_encomenda') {
+    $encId = (int)($_POST['encomenda_id'] ?? 0);
+    $novoEstado = $_POST['estado'] ?? 'Pendente';
+    $novoEstado = is_string($novoEstado) ? trim($novoEstado) : '';
+
+    if ($encId > 0 && in_array($novoEstado, $estadosValidos, true)) {
+        $stmtEst = $pdo->prepare("UPDATE encomendas SET estado = ? WHERE id = ?");
+        $stmtEst->execute([$novoEstado, $encId]);
+        $mensagem = "Estado da encomenda #{$encId} atualizado para «{$novoEstado}».";
+        $tipoAlerta = 'success';
+    } else {
+        $mensagem = "Não foi possível atualizar o estado da encomenda.";
+        $tipoAlerta = 'danger';
+    }
+}
+
 // Buscar categorias e produtos para listar na página
 $categorias = $pdo->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
 $produtos   = $pdo->query("SELECT p.*, c.nome AS categoria_nome FROM produtos p JOIN categorias c ON p.categoria_id = c.id ORDER BY p.id DESC")->fetchAll();
@@ -104,6 +161,34 @@ if (!empty($encomendas)) {
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
+
+        <!-- Gestão de Categorias -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-secondary text-white fw-bold">
+                Gerir Categorias
+            </div>
+            <div class="card-body">
+                <form method="POST" class="row g-2 align-items-end mb-3">
+                    <input type="hidden" name="acao" value="criar_categoria">
+                    <div class="col-md-8">
+                        <label for="nome_categoria" class="form-label">Nova categoria</label>
+                        <input type="text" id="nome_categoria" name="nome_categoria" class="form-control" maxlength="100" required>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-success">Guardar Categoria</button>
+                    </div>
+                </form>
+                <?php if (empty($categorias)): ?>
+                    <p class="text-muted mb-0">Ainda não existem categorias.</p>
+                <?php else: ?>
+                    <ul class="list-inline mb-0">
+                        <?php foreach ($categorias as $cat): ?>
+                            <li class="list-inline-item"><span class="badge bg-light text-dark border"><?= htmlspecialchars($cat['nome']) ?></span></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            </div>
+        </div>
 
         <!-- Formulário para Adicionar Produto -->
         <div class="card shadow-sm mb-4">
@@ -231,6 +316,9 @@ if (!empty($encomendas)) {
                                         <span class="text-muted small me-3">
                                             <?= htmlspecialchars(date('d/m/Y H:i', strtotime($enc['criado_em']))) ?>
                                         </span>
+                                        <span class="badge bg-secondary ms-auto me-2">
+                                            <?= htmlspecialchars($enc['estado']) ?>
+                                        </span>
                                         <span class="badge bg-success ms-auto me-2">
                                             <?= number_format((float)$enc['total'], 2, ',', ' ') ?> €
                                         </span>
@@ -239,6 +327,23 @@ if (!empty($encomendas)) {
                                 <div id="enc<?= (int)$enc['id'] ?>" class="accordion-collapse collapse <?= $idx === 0 ? 'show' : '' ?>"
                                      data-bs-parent="#accordionEncomendas">
                                     <div class="accordion-body">
+                                        <form method="POST" class="row g-2 align-items-end mb-3">
+                                            <input type="hidden" name="acao" value="estado_encomenda">
+                                            <input type="hidden" name="encomenda_id" value="<?= (int)$enc['id'] ?>">
+                                            <div class="col-sm-6 col-md-4">
+                                                <label for="estado<?= (int)$enc['id'] ?>" class="form-label">Estado da encomenda</label>
+                                                <select id="estado<?= (int)$enc['id'] ?>" name="estado" class="form-select">
+                                                    <?php foreach ($estadosValidos as $estado): ?>
+                                                        <option value="<?= htmlspecialchars($estado) ?>" <?= $enc['estado'] === $estado ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($estado) ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                            <div class="col-sm-6 col-md-3">
+                                                <button type="submit" class="btn btn-primary">Atualizar Estado</button>
+                                            </div>
+                                        </form>
                                         <div class="table-responsive">
                                             <table class="table table-sm align-middle mb-0">
                                                 <thead>

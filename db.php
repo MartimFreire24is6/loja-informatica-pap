@@ -20,9 +20,15 @@ function garantirTabelasEncomendas(PDO $pdo): void
             id INT AUTO_INCREMENT PRIMARY KEY,
             referencia VARCHAR(40) NOT NULL UNIQUE,
             total DECIMAL(10,2) NOT NULL,
+            estado VARCHAR(30) NOT NULL DEFAULT 'Pendente',
             criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     ");
+
+    $colunaEstado = $pdo->query("SHOW COLUMNS FROM encomendas LIKE 'estado'")->fetch();
+    if (!$colunaEstado) {
+        $pdo->exec("ALTER TABLE encomendas ADD COLUMN estado VARCHAR(30) NOT NULL DEFAULT 'Pendente'");
+    }
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS itens_encomenda (

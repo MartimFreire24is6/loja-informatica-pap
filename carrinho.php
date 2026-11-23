@@ -84,10 +84,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'finaliz
         $tipoAlerta = 'warning';
     } else {
         try {
-            if (function_exists('garantirTabelasEncomendas')) {
-                garantirTabelasEncomendas($pdo);
-            }
-
             $pdo->beginTransaction();
             $itensResumo = [];
             $totalPago = 0.0;
