@@ -5,6 +5,77 @@ if (empty($_SESSION['admin_logado'])) {
     exit;
 }
 require_once 'db.php';
+
+function resolverImagemProduto(array $ficheiroUpload, string $urlFallback): string
+{
+    $imagemPadrao = 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=600';
+    $urlLimpa = trim($urlFallback);
+    $erroUpload = $ficheiroUpload['error'] ?? UPLOAD_ERR_NO_FILE;
+
+    if (!is_int($erroUpload)) {
+        throw new RuntimeException('Falha no envio do ficheiro de imagem.');
+    }
+
+    if ($erroUpload !== UPLOAD_ERR_NO_FILE) {
+        if ($erroUpload === UPLOAD_ERR_INI_SIZE || $erroUpload === UPLOAD_ERR_FORM_SIZE) {
+            throw new RuntimeException('A imagem deve ter no máximo 3 MB.');
+        }
+        if ($erroUpload !== UPLOAD_ERR_OK) {
+            throw new RuntimeException('Falha no envio do ficheiro de imagem.');
+        }
+
+        $tmpPath = $ficheiroUpload['tmp_name'] ?? '';
+        if (!is_string($tmpPath) || $tmpPath === '' || !is_uploaded_file($tmpPath)) {
+            throw new RuntimeException('O ficheiro enviado não é válido.');
+        }
+
+        $tamanhoMax = 3 * 1024 * 1024;
+        $tamanho = @filesize($tmpPath);
+        if ($tamanho === false || $tamanho <= 0 || $tamanho > $tamanhoMax) {
+            throw new RuntimeException('A imagem deve ter no máximo 3 MB.');
+        }
+
+        $infoImg = @getimagesize($tmpPath);
+        if ($infoImg === false || !isset($infoImg[2])) {
+            throw new RuntimeException('O ficheiro enviado não é uma imagem válida.');
+        }
+
+        $extPorMime = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+        ];
+        $mimePorTipo = [
+            IMAGETYPE_JPEG => 'image/jpeg',
+            IMAGETYPE_PNG => 'image/png',
+            IMAGETYPE_WEBP => 'image/webp',
+            IMAGETYPE_GIF => 'image/gif',
+        ];
+
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($tmpPath);
+        if (!is_string($mime) || !isset($extPorMime[$mime]) || ($mimePorTipo[$infoImg[2]] ?? null) !== $mime) {
+            throw new RuntimeException('Formato não suportado. Usa JPG, PNG, WEBP ou GIF.');
+        }
+
+        $pastaDestino = __DIR__ . '/uploads/produtos';
+        if (!is_dir($pastaDestino) && !@mkdir($pastaDestino, 0775, true) && !is_dir($pastaDestino)) {
+            throw new RuntimeException('Não foi possível criar a pasta de uploads.');
+        }
+
+        $nomeFicheiro = 'prod_' . date('YmdHis') . '_' . bin2hex(random_bytes(16)) . '.' . $extPorMime[$mime];
+        $caminhoFinal = $pastaDestino . '/' . $nomeFicheiro;
+        if (!move_uploaded_file($tmpPath, $caminhoFinal)) {
+            throw new RuntimeException('Não foi possível guardar a imagem no servidor.');
+        }
+
+        return 'uploads/produtos/' . $nomeFicheiro;
+    }
+
+    return $urlLimpa !== '' ? $urlLimpa : $imagemPadrao;
+}
+
 garantirTabelaMensagens($pdo);
 
 $mensagem = '';
@@ -79,16 +150,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'adicion
     $descricao    = trim($_POST['descricao'] ?? '');
     $preco        = (float)str_replace(',', '.', $_POST['preco'] ?? 0);
     $stock        = (int)($_POST['stock'] ?? 0);
-    $imagem       = trim($_POST['imagem'] ?? '');
-
-    if ($imagem === '') {
-        $imagem = 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=600';
-    }
+    $imagem       = $_POST['imagem'] ?? '';
+    $imagem       = is_string($imagem) ? trim($imagem) : '';
 
     if ($categoria_id > 0 && $nome !== '' && $marca !== '' && $preco > 0) {
-        $stmt = $pdo->prepare("INSERT INTO produtos (categoria_id, nome, marca, descricao, preco, stock, imagem) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$categoria_id, $nome, $marca, $descricao, $preco, $stock, $imagem]);
-        $mensagem = "Produto «{$nome}» adicionado com sucesso!";
+        try {
+            $ficheiroUpload = $_FILES['imagem_arquivo'] ?? [];
+            if (!is_array($ficheiroUpload)) {
+                throw new RuntimeException('Falha no envio do ficheiro de imagem.');
+            }
+            $imagem = resolverImagemProduto($ficheiroUpload, $imagem);
+            $stmt = $pdo->prepare("INSERT INTO produtos (categoria_id, nome, marca, descricao, preco, stock, imagem) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$categoria_id, $nome, $marca, $descricao, $preco, $stock, $imagem]);
+            $mensagem = "Produto «{$nome}» adicionado com sucesso!";
+        } catch (Throwable $e) {
+            $mensagem = $e->getMessage();
+            $tipoAlerta = 'danger';
+        }
     } else {
         $mensagem = "Preenche os campos obrigatórios (categoria, nome, marca e preço válido).";
         $tipoAlerta = 'danger';
@@ -117,21 +195,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'editar_
     $descricao    = trim($_POST['descricao'] ?? '');
     $preco        = (float)str_replace(',', '.', $_POST['preco'] ?? 0);
     $stock        = (int)($_POST['stock'] ?? 0);
-    $imagem       = trim($_POST['imagem'] ?? '');
-
+    $imagem       = $_POST['imagem'] ?? '';
+    $imagem       = is_string($imagem) ? trim($imagem) : '';
+    $imagemAtual  = $_POST['imagem_atual'] ?? '';
+    $imagemAtual  = is_string($imagemAtual) ? trim($imagemAtual) : '';
     if ($imagem === '') {
-        $imagem = 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=600';
+        $imagem = $imagemAtual;
     }
 
     if ($id > 0 && $categoria_id > 0 && $nome !== '' && $marca !== '' && $preco > 0 && $stock >= 0) {
-        $stmt = $pdo->prepare("
-            UPDATE produtos
-            SET categoria_id = ?, nome = ?, marca = ?, descricao = ?, preco = ?, stock = ?, imagem = ?
-            WHERE id = ?
-        ");
-        $stmt->execute([$categoria_id, $nome, $marca, $descricao, $preco, $stock, $imagem, $id]);
-        $mensagem = "Produto «{$nome}» (#{$id}) atualizado com sucesso!";
-        $tipoAlerta = 'success';
+        try {
+            $ficheiroUpload = $_FILES['imagem_arquivo'] ?? [];
+            if (!is_array($ficheiroUpload)) {
+                throw new RuntimeException('Falha no envio do ficheiro de imagem.');
+            }
+            $imagem = resolverImagemProduto($ficheiroUpload, $imagem);
+            $stmt = $pdo->prepare("
+                UPDATE produtos
+                SET categoria_id = ?, nome = ?, marca = ?, descricao = ?, preco = ?, stock = ?, imagem = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$categoria_id, $nome, $marca, $descricao, $preco, $stock, $imagem, $id]);
+            $mensagem = "Produto «{$nome}» (#{$id}) atualizado com sucesso!";
+            $tipoAlerta = 'success';
+        } catch (Throwable $e) {
+            $mensagem = $e->getMessage();
+            $tipoAlerta = 'danger';
+        }
     } else {
         $mensagem = "Verifica os campos obrigatórios para editar o produto.";
         $tipoAlerta = 'danger';
@@ -241,6 +331,7 @@ if ($editarId > 0) {
     $stmtEdit->execute([$editarId]);
     $produtoEditar = $stmtEdit->fetch() ?: null;
 }
+$imagemAtualProduto = (string)($produtoEditar['imagem'] ?? '');
 
 // Buscar encomendas e respetivos itens
 $encomendas = $pdo->query("SELECT * FROM encomendas ORDER BY id DESC")->fetchAll();
@@ -371,7 +462,7 @@ foreach ($mensagensRecebidas as $m) {
                 + Adicionar Novo Produto
             </div>
             <div class="card-body">
-                <form method="POST" class="row g-3">
+                <form method="POST" enctype="multipart/form-data" class="row g-3">
                     <input type="hidden" name="acao" value="adicionar">
 
                     <div class="col-md-4">
@@ -403,12 +494,17 @@ foreach ($mensagensRecebidas as $m) {
                         <input type="number" min="0" name="stock" class="form-control" value="5" required>
                     </div>
 
-                    <div class="col-md-5">
+                    <div class="col-md-6">
                         <label class="form-label">URL da Imagem (opcional)</label>
                         <input type="url" name="imagem" class="form-control" placeholder="https://...">
                     </div>
 
-                    <div class="col-md-5">
+                    <div class="col-md-6">
+                        <label class="form-label">Ou Carregar Imagem do Computador (JPG, PNG, WEBP, GIF — máx. 3 MB)</label>
+                        <input type="file" name="imagem_arquivo" accept="image/jpeg,image/png,image/webp,image/gif" class="form-control">
+                    </div>
+
+                    <div class="col-12">
                         <label class="form-label">Descrição / Especificações</label>
                         <input type="text" name="descricao" class="form-control" placeholder="NVMe PCIe 4.0, Leitura 7450 MB/s...">
                     </div>
@@ -427,9 +523,10 @@ foreach ($mensagensRecebidas as $m) {
                     <a href="admin.php" class="btn btn-sm btn-outline-dark">Cancelar</a>
                 </div>
                 <div class="card-body">
-                    <form method="POST" class="row g-3">
+                    <form method="POST" enctype="multipart/form-data" class="row g-3">
                         <input type="hidden" name="acao" value="editar_completo">
                         <input type="hidden" name="id" value="<?= (int)$produtoEditar['id'] ?>">
+                        <input type="hidden" name="imagem_atual" value="<?= htmlspecialchars($imagemAtualProduto) ?>">
 
                         <div class="col-md-4">
                             <label class="form-label">Nome do Produto *</label>
@@ -462,12 +559,17 @@ foreach ($mensagensRecebidas as $m) {
                             <input type="number" min="0" name="stock" class="form-control" value="<?= (int)$produtoEditar['stock'] ?>" required>
                         </div>
 
-                        <div class="col-md-5">
+                        <div class="col-md-6">
                             <label class="form-label">URL da Imagem</label>
-                            <input type="url" name="imagem" class="form-control" value="<?= htmlspecialchars((string)$produtoEditar['imagem']) ?>">
+                            <input type="url" name="imagem" class="form-control" value="<?= filter_var($imagemAtualProduto, FILTER_VALIDATE_URL) ? htmlspecialchars($imagemAtualProduto) : '' ?>" placeholder="https://...">
                         </div>
 
-                        <div class="col-md-5">
+                        <div class="col-md-6">
+                            <label class="form-label">Ou Carregar Imagem do Computador (JPG, PNG, WEBP, GIF — máx. 3 MB)</label>
+                            <input type="file" name="imagem_arquivo" accept="image/jpeg,image/png,image/webp,image/gif" class="form-control">
+                        </div>
+
+                        <div class="col-12">
                             <label class="form-label">Descrição / Especificações</label>
                             <input type="text" name="descricao" class="form-control" value="<?= htmlspecialchars((string)$produtoEditar['descricao']) ?>">
                         </div>
