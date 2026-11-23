@@ -46,5 +46,20 @@ function garantirTabelasEncomendas(PDO $pdo): void
     ");
 }
 
+function garantirTabelaMensagens(PDO $pdo): void
+{
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS mensagens (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(120) NOT NULL,
+            email VARCHAR(160) NOT NULL,
+            assunto VARCHAR(180) NOT NULL,
+            mensagem TEXT NOT NULL,
+            lida TINYINT(1) NOT NULL DEFAULT 0,
+            criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+}
+
 garantirTabelasEncomendas($pdo);
 ?>

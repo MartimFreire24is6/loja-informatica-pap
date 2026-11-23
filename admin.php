@@ -232,34 +232,34 @@ foreach ($mensagensRecebidas as $m) {
             </div>
         <?php endif; ?>
 
-        <!-- Gestão de Categorias -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-secondary text-white fw-bold">
-                Gerir Categorias
-            </div>
-            <div class="card-body">
-                <form method="POST" class="row g-2 align-items-end mb-3">
-                    <input type="hidden" name="acao" value="criar_categoria">
-                    <div class="col-md-8">
-                        <label for="nome_categoria" class="form-label">Nova categoria</label>
-                        <input type="text" id="nome_categoria" name="nome_categoria" class="form-control" maxlength="100" required>
-                    </div>
-                    <div class="col-md-4">
-                        <button type="submit" class="btn btn-success">Guardar Categoria</button>
-                    </div>
-                </form>
-                <?php if (empty($categorias)): ?>
-                    <p class="text-muted mb-0">Ainda não existem categorias.</p>
-                <?php else: ?>
-                    <ul class="list-inline mb-0">
-                        <?php foreach ($categorias as $cat): ?>
-                            <li class="list-inline-item"><span class="badge bg-light text-dark border"><?= htmlspecialchars($cat['nome']) ?></span></li>
-                        <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
-            </div>
-        </div>
+        <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-semibold" id="tab-produtos" data-bs-toggle="tab" data-bs-target="#pane-produtos" type="button" role="tab" aria-controls="pane-produtos" aria-selected="true">
+                    🖥️ Produtos (<?= count($produtos) ?>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-semibold" id="tab-categorias" data-bs-toggle="tab" data-bs-target="#pane-categorias" type="button" role="tab" aria-controls="pane-categorias" aria-selected="false">
+                    🏷️ Categorias (<?= count($categorias) ?>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-semibold" id="tab-encomendas" data-bs-toggle="tab" data-bs-target="#pane-encomendas" type="button" role="tab" aria-controls="pane-encomendas" aria-selected="false">
+                    📦 Encomendas (<?= count($encomendas) ?>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-semibold" id="tab-mensagens" data-bs-toggle="tab" data-bs-target="#pane-mensagens" type="button" role="tab" aria-controls="pane-mensagens" aria-selected="false">
+                    ✉️ Mensagens (<?= count($mensagensRecebidas) ?>)
+                    <?php if ($mensagensNaoLidas > 0): ?>
+                        <span class="badge bg-warning text-dark ms-1"><?= (int)$mensagensNaoLidas ?></span>
+                    <?php endif; ?>
+                </button>
+            </li>
+        </ul>
 
+        <div class="tab-content" id="adminTabsContent">
+            <div class="tab-pane fade show active" id="pane-produtos" role="tabpanel" aria-labelledby="tab-produtos" tabindex="0">
         <!-- Formulário para Adicionar Produto -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-primary text-white fw-bold">
@@ -427,6 +427,39 @@ foreach ($mensagensRecebidas as $m) {
             </div>
         </div>
 
+            </div>
+
+            <div class="tab-pane fade" id="pane-categorias" role="tabpanel" aria-labelledby="tab-categorias" tabindex="0">
+                <!-- Gestão de Categorias -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white fw-bold">
+                        Gerir Categorias
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" class="row g-2 align-items-end mb-3">
+                            <input type="hidden" name="acao" value="criar_categoria">
+                            <div class="col-md-8">
+                                <label for="nome_categoria" class="form-label">Nova categoria</label>
+                                <input type="text" id="nome_categoria" name="nome_categoria" class="form-control" maxlength="100" required>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-success">Guardar Categoria</button>
+                            </div>
+                        </form>
+                        <?php if (empty($categorias)): ?>
+                            <p class="text-muted mb-0">Ainda não existem categorias.</p>
+                        <?php else: ?>
+                            <ul class="list-inline mb-0">
+                                <?php foreach ($categorias as $cat): ?>
+                                    <li class="list-inline-item"><span class="badge bg-light text-dark border"><?= htmlspecialchars($cat['nome']) ?></span></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="pane-encomendas" role="tabpanel" aria-labelledby="tab-encomendas" tabindex="0">
         <!-- Encomendas Realizadas -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-dark text-white fw-bold">
@@ -507,7 +540,9 @@ foreach ($mensagensRecebidas as $m) {
                 <?php endif; ?>
             </div>
         </div>
+            </div>
 
+            <div class="tab-pane fade" id="pane-mensagens" role="tabpanel" aria-labelledby="tab-mensagens" tabindex="0">
         <!-- Mensagens Recebidas -->
         <div class="card shadow-sm">
             <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center">
@@ -556,6 +591,8 @@ foreach ($mensagensRecebidas as $m) {
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
+            </div>
+        </div>
             </div>
         </div>
     </div>
