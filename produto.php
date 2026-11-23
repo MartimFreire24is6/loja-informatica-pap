@@ -57,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'adicion
             <div class="navbar-nav me-auto">
                 <a class="nav-link" href="index.php">Início</a>
                 <a class="nav-link" href="catalogo.php">Catálogo</a>
+                <a class="nav-link" href="sobre.php">Sobre Nós</a>
             </div>
             <div class="d-flex gap-2">
                 <a href="carrinho.php" class="btn btn-warning btn-sm fw-bold">

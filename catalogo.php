@@ -71,6 +71,11 @@ $produtos = $stmtProd->fetchAll();
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand fw-bold" href="index.php">🖥️ TechStore PAP</a>
+            <div class="navbar-nav me-auto">
+                <a class="nav-link" href="index.php">Início</a>
+                <a class="nav-link active" href="catalogo.php">Catálogo</a>
+                <a class="nav-link" href="sobre.php">Sobre Nós</a>
+            </div>
             <div class="d-flex">
                 <a href="carrinho.php" class="btn btn-warning btn-sm fw-bold me-2">
                     🛒 Carrinho (<?= (int)$totalItensCarrinho ?>)

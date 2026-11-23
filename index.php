@@ -34,6 +34,7 @@ $destaques  = $pdo->query("
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item"><a class="nav-link active" href="index.php">Início</a></li>
                     <li class="nav-item"><a class="nav-link" href="catalogo.php">Catálogo</a></li>
+                    <li class="nav-item"><a class="nav-link" href="sobre.php">Sobre Nós</a></li>
                 </ul>
                 <div class="d-flex gap-2">
                     <a href="carrinho.php" class="btn btn-warning btn-sm fw-bold">
