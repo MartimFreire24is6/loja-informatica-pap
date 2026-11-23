@@ -366,6 +366,77 @@ foreach ($mensagensRecebidas as $m) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Administração - TechStore PAP</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        @media print {
+            @page {
+                margin: 12mm;
+            }
+
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+            }
+
+            .navbar,
+            footer,
+            .nav-tabs,
+            .d-print-none,
+            .btn,
+            form,
+            .alert-dismissible .btn-close {
+                display: none !important;
+            }
+
+            .card,
+            .accordion-item,
+            .border {
+                box-shadow: none !important;
+                border-color: #dee2e6 !important;
+            }
+
+            .accordion-collapse {
+                display: block !important;
+                height: auto !important;
+                visibility: visible !important;
+            }
+
+            .accordion-button {
+                color: #000000 !important;
+                background: #ffffff !important;
+                box-shadow: none !important;
+            }
+
+            .accordion-button::after {
+                display: none !important;
+            }
+
+            .container {
+                max-width: 100% !important;
+                width: 100% !important;
+            }
+
+            body.imprimir-encomenda .container > :not(#adminTabsContent) {
+                display: none !important;
+            }
+
+            body.imprimir-encomenda #adminTabsContent > .tab-pane:not(#pane-encomendas) {
+                display: none !important;
+            }
+
+            body.imprimir-encomenda #pane-encomendas {
+                display: block !important;
+                opacity: 1 !important;
+            }
+
+            body.imprimir-encomenda #accordionEncomendas > .accordion-item {
+                display: none !important;
+            }
+
+            body.imprimir-encomenda #accordionEncomendas > .accordion-item.print-selected {
+                display: block !important;
+            }
+        }
+    </style>
 </head>
 <body class="bg-light">
 
@@ -796,6 +867,11 @@ foreach ($mensagensRecebidas as $m) {
                                                  <?php endif; ?>
                                              </div>
                                          <?php endif; ?>
+                                         <div class="mb-3 d-print-none">
+                                             <button type="button" onclick="imprimirEncomenda(this)" class="btn btn-outline-secondary btn-sm">
+                                                 🖨️ Imprimir Encomenda
+                                             </button>
+                                         </div>
                                         <form method="POST" class="row g-2 align-items-end mb-3">
                                             <input type="hidden" name="acao" value="estado_encomenda">
                                             <input type="hidden" name="encomenda_id" value="<?= (int)$enc['id'] ?>">
@@ -922,5 +998,24 @@ foreach ($mensagensRecebidas as $m) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function imprimirEncomenda(botao) {
+            const encomenda = botao.closest('.accordion-item');
+            if (!encomenda) {
+                return;
+            }
+
+            document.body.classList.add('imprimir-encomenda');
+            encomenda.classList.add('print-selected');
+            window.print();
+        }
+
+        window.addEventListener('afterprint', () => {
+            document.body.classList.remove('imprimir-encomenda');
+            document.querySelectorAll('.accordion-item.print-selected').forEach((item) => {
+                item.classList.remove('print-selected');
+            });
+        });
+    </script>
 </body>
 </html>

@@ -263,6 +263,38 @@ if (!empty($_SESSION['carrinho'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Carrinho - TechStore PAP</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        @media print {
+            @page {
+                margin: 12mm;
+            }
+
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+            }
+
+            .navbar,
+            footer,
+            .d-print-none,
+            .btn,
+            form,
+            .alert-dismissible .btn-close {
+                display: none !important;
+            }
+
+            .card,
+            .border {
+                box-shadow: none !important;
+                border-color: #dee2e6 !important;
+            }
+
+            .container {
+                max-width: 100% !important;
+                width: 100% !important;
+            }
+        }
+    </style>
 </head>
 <body class="bg-light">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
@@ -345,7 +377,10 @@ if (!empty($_SESSION['carrinho'])) {
                         </table>
                     </div>
 
-                    <div class="d-flex flex-wrap gap-2">
+                    <div class="d-flex flex-wrap gap-2 mt-3 d-print-none">
+                        <button type="button" onclick="window.print();" class="btn btn-outline-dark btn-sm">
+                            🖨️ Imprimir / Guardar PDF
+                        </button>
                         <a href="catalogo.php" class="btn btn-primary">Continuar a Comprar</a>
                         <a href="index.php" class="btn btn-outline-dark">Voltar ao Início</a>
                     </div>
