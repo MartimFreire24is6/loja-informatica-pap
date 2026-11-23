@@ -9,24 +9,46 @@ $stmtCat = $pdo->query("SELECT * FROM categorias ORDER BY nome ASC");
 $categorias = $stmtCat->fetchAll();
 
 // Verificar se o utilizador filtrou por alguma categoria na URL (ex: index.php?categoria=perifericos)
-$categoriaSlug = $_GET['categoria'] ?? '';
-
-if ($categoriaSlug !== '') {
-    $sql = "SELECT p.*, c.nome AS categoria_nome 
-            FROM produtos p 
-            JOIN categorias c ON p.categoria_id = c.id 
-            WHERE c.slug = :slug 
-            ORDER BY p.id DESC";
-    $stmtProd = $pdo->prepare($sql);
-    $stmtProd->execute(['slug' => $categoriaSlug]);
-} else {
-    $sql = "SELECT p.*, c.nome AS categoria_nome 
-            FROM produtos p 
-            JOIN categorias c ON p.categoria_id = c.id 
-            ORDER BY p.id DESC";
-    $stmtProd = $pdo->query($sql);
+$categoriaSlug = is_string($_GET['categoria'] ?? null) ? $_GET['categoria'] : '';
+$pesquisa = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
+$ordem = is_string($_GET['ordem'] ?? null) ? $_GET['ordem'] : 'recentes';
+if (!in_array($ordem, ['recentes', 'preco_asc', 'preco_desc', 'nome_asc'], true)) {
+    $ordem = 'recentes';
 }
 
+$where = [];
+$params = [];
+
+if ($categoriaSlug !== '') {
+    $where[] = 'c.slug = ?';
+    $params[] = $categoriaSlug;
+}
+
+if ($pesquisa !== '') {
+    $where[] = '(p.nome LIKE ? OR p.marca LIKE ? OR p.descricao LIKE ?)';
+    $termo = '%' . $pesquisa . '%';
+    $params[] = $termo;
+    $params[] = $termo;
+    $params[] = $termo;
+}
+
+$orderBy = match ($ordem) {
+    'preco_asc' => 'p.preco ASC',
+    'preco_desc' => 'p.preco DESC',
+    'nome_asc' => 'p.nome ASC',
+    default => 'p.id DESC',
+};
+
+$sql = "SELECT p.*, c.nome AS categoria_nome
+        FROM produtos p
+        JOIN categorias c ON p.categoria_id = c.id";
+if ($where !== []) {
+    $sql .= ' WHERE ' . implode(' AND ', $where);
+}
+$sql .= " ORDER BY {$orderBy}";
+
+$stmtProd = $pdo->prepare($sql);
+$stmtProd->execute($params);
 $produtos = $stmtProd->fetchAll();
 ?>
 <!DOCTYPE html>
@@ -79,11 +101,38 @@ $produtos = $stmtProd->fetchAll();
             <?php endforeach; ?>
         </div>
 
+        <form method="GET" class="row g-2 mb-4 align-items-center">
+            <?php if ($categoriaSlug !== ''): ?>
+                <input type="hidden" name="categoria" value="<?= htmlspecialchars($categoriaSlug, ENT_QUOTES, 'UTF-8') ?>">
+            <?php endif; ?>
+
+            <div class="col-md-6">
+                <input type="search" name="q" value="<?= htmlspecialchars($pesquisa, ENT_QUOTES, 'UTF-8') ?>"
+                       class="form-control" placeholder="Pesquisar por produto, marca ou especificação...">
+            </div>
+
+            <div class="col-md-4">
+                <select name="ordem" class="form-select">
+                    <option value="recentes" <?= $ordem === 'recentes' ? 'selected' : '' ?>>Ordenar: Mais recentes</option>
+                    <option value="preco_asc" <?= $ordem === 'preco_asc' ? 'selected' : '' ?>>Preço: menor para o maior</option>
+                    <option value="preco_desc" <?= $ordem === 'preco_desc' ? 'selected' : '' ?>>Preço: maior para o menor</option>
+                    <option value="nome_asc" <?= $ordem === 'nome_asc' ? 'selected' : '' ?>>Nome: A → Z</option>
+                </select>
+            </div>
+
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-dark w-100">Filtrar</button>
+                <?php if ($pesquisa !== '' || $ordem !== 'recentes'): ?>
+                    <a href="index.php<?= $categoriaSlug !== '' ? '?categoria=' . rawurlencode($categoriaSlug) : '' ?>" class="btn btn-outline-secondary">Limpar</a>
+                <?php endif; ?>
+            </div>
+        </form>
+
         <!-- Grelha de Produtos -->
         <div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
             <?php if (count($produtos) === 0): ?>
                 <div class="col-12">
-                    <div class="alert alert-warning">Nenhum produto encontrado nesta categoria.</div>
+                    <div class="alert alert-warning">Nenhum produto encontrado com estes filtros.</div>
                 </div>
             <?php else: ?>
                 <?php foreach ($produtos as $prod): ?>
