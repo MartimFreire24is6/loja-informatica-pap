@@ -1,4 +1,7 @@
 <?php
+session_start();
+$totalItensCarrinho = array_sum($_SESSION['carrinho'] ?? []);
+
 require_once 'db.php';
 
 // Buscar todas as categorias para o menu de filtros
@@ -48,6 +51,9 @@ $produtos = $stmtProd->fetchAll();
         <div class="container">
             <a class="navbar-brand fw-bold" href="index.php">🖥️ TechStore PAP</a>
             <div class="d-flex">
+                <a href="carrinho.php" class="btn btn-warning btn-sm fw-bold me-2">
+                    🛒 Carrinho (<?= (int)$totalItensCarrinho ?>)
+                </a>
                 <a href="admin.php" class="btn btn-outline-light btn-sm">Área de Administração</a>
             </div>
         </div>
@@ -97,6 +103,13 @@ $produtos = $stmtProd->fetchAll();
                                         <?= $prod['stock'] > 0 ? "Stock: {$prod['stock']} un." : 'Esgotado' ?>
                                     </span>
                                 </div>
+                                <form method="POST" action="carrinho.php" class="mt-3">
+                                    <input type="hidden" name="acao" value="adicionar">
+                                    <input type="hidden" name="id" value="<?= (int)$prod['id'] ?>">
+                                    <button type="submit" class="btn btn-primary btn-sm w-100" <?= ((int)$prod['stock'] <= 0) ? 'disabled' : '' ?>>
+                                        <?= ((int)$prod['stock'] > 0) ? '+ Adicionar ao Carrinho' : 'Sem Stock' ?>
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     </div>
