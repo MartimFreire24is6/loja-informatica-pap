@@ -1,171 +1,138 @@
 <?php
 session_start();
-$totalItensCarrinho = array_sum($_SESSION['carrinho'] ?? []);
-
 require_once 'db.php';
 
-// Buscar todas as categorias para o menu de filtros
-$stmtCat = $pdo->query("SELECT * FROM categorias ORDER BY nome ASC");
-$categorias = $stmtCat->fetchAll();
+$totalItensCarrinho = array_sum($_SESSION['carrinho'] ?? []);
 
-// Verificar se o utilizador filtrou por alguma categoria na URL (ex: index.php?categoria=perifericos)
-$categoriaSlug = is_string($_GET['categoria'] ?? null) ? $_GET['categoria'] : '';
-$pesquisa = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
-$ordem = is_string($_GET['ordem'] ?? null) ? $_GET['ordem'] : 'recentes';
-if (!in_array($ordem, ['recentes', 'preco_asc', 'preco_desc', 'nome_asc'], true)) {
-    $ordem = 'recentes';
-}
-
-$where = [];
-$params = [];
-
-if ($categoriaSlug !== '') {
-    $where[] = 'c.slug = ?';
-    $params[] = $categoriaSlug;
-}
-
-if ($pesquisa !== '') {
-    $where[] = '(p.nome LIKE ? OR p.marca LIKE ? OR p.descricao LIKE ?)';
-    $termo = '%' . $pesquisa . '%';
-    $params[] = $termo;
-    $params[] = $termo;
-    $params[] = $termo;
-}
-
-$orderBy = match ($ordem) {
-    'preco_asc' => 'p.preco ASC',
-    'preco_desc' => 'p.preco DESC',
-    'nome_asc' => 'p.nome ASC',
-    default => 'p.id DESC',
-};
-
-$sql = "SELECT p.*, c.nome AS categoria_nome
-        FROM produtos p
-        JOIN categorias c ON p.categoria_id = c.id";
-if ($where !== []) {
-    $sql .= ' WHERE ' . implode(' AND ', $where);
-}
-$sql .= " ORDER BY {$orderBy}";
-
-$stmtProd = $pdo->prepare($sql);
-$stmtProd->execute($params);
-$produtos = $stmtProd->fetchAll();
+$categorias = $pdo->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
+$destaques  = $pdo->query("
+    SELECT p.*, c.nome AS categoria_nome
+    FROM produtos p
+    JOIN categorias c ON p.categoria_id = c.id
+    WHERE p.stock > 0
+    ORDER BY p.id DESC
+    LIMIT 3
+")->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TechStore PAP - Computadores e Periféricos</title>
-    <!-- Bootstrap 5 via CDN para um visual moderno e responsivo -->
+    <title>TechStore PAP — Computadores, Hardware e Periféricos</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .card-img-top {
-            height: 200px;
-            object-fit: cover;
-        }
-    </style>
 </head>
 <body class="bg-light">
 
-    <!-- Barra de Navegação -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand fw-bold" href="index.php">🖥️ TechStore PAP</a>
-            <div class="d-flex">
-                <a href="carrinho.php" class="btn btn-warning btn-sm fw-bold me-2">
-                    🛒 Carrinho (<?= (int)$totalItensCarrinho ?>)
-                </a>
-                <a href="admin.php" class="btn btn-outline-light btn-sm">Área de Administração</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menuNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="menuNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link active" href="index.php">Início</a></li>
+                    <li class="nav-item"><a class="nav-link" href="catalogo.php">Catálogo</a></li>
+                </ul>
+                <div class="d-flex gap-2">
+                    <a href="carrinho.php" class="btn btn-warning btn-sm fw-bold">
+                        🛒 Carrinho (<?= (int)$totalItensCarrinho ?>)
+                    </a>
+                    <a href="admin.php" class="btn btn-outline-light btn-sm">Área de Administração</a>
+                </div>
             </div>
         </div>
     </nav>
 
-    <div class="container">
-        <!-- Cabeçalho -->
-        <div class="p-4 mb-4 bg-white rounded-3 shadow-sm">
-            <h1 class="display-6 fw-bold">Hardware & Periféricos</h1>
-            <p class="text-muted mb-0">Catálogo dinâmico ligado à base de dados MariaDB.</p>
+    <!-- Hero Banner -->
+    <section class="bg-dark text-white py-5 mb-5">
+        <div class="container py-3">
+            <div class="row align-items-center g-4">
+                <div class="col-lg-8">
+                    <span class="badge bg-primary mb-2">Hardware &amp; Setup</span>
+                    <h1 class="display-5 fw-bold mb-3">Equipamento de informática pensado para performance</h1>
+                    <p class="lead text-light opacity-75 mb-4">
+                        Portáteis, placas gráficas, monitores e periféricos com controlo de stock em tempo real e checkout direto.
+                    </p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="catalogo.php" class="btn btn-primary btn-lg px-4">Explorar Catálogo</a>
+                        <a href="#destaques" class="btn btn-outline-light btn-lg px-4">Ver Destaques</a>
+                    </div>
+                </div>
+            </div>
         </div>
+    </section>
 
-        <!-- Filtros por Categoria -->
-        <div class="mb-4 d-flex flex-wrap gap-2">
-            <a href="index.php" class="btn <?= $categoriaSlug === '' ? 'btn-primary' : 'btn-outline-primary' ?>">
-                Todos os Produtos
-            </a>
+    <!-- Categorias -->
+    <section class="container mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h4 fw-bold mb-0">Categorias</h2>
+            <a href="catalogo.php" class="text-decoration-none small">Ver tudo →</a>
+        </div>
+        <div class="row row-cols-2 row-cols-md-4 g-3">
             <?php foreach ($categorias as $cat): ?>
-                <a href="index.php?categoria=<?= htmlspecialchars($cat['slug']) ?>" 
-                   class="btn <?= $categoriaSlug === $cat['slug'] ? 'btn-primary' : 'btn-outline-primary' ?>">
-                    <?= htmlspecialchars($cat['nome']) ?>
-                </a>
+                <div class="col">
+                    <a href="catalogo.php?categoria=<?= (int)$cat['id'] ?>" class="card text-decoration-none shadow-sm h-100 border-0">
+                        <div class="card-body d-flex align-items-center justify-content-between">
+                            <span class="fw-bold text-dark"><?= htmlspecialchars($cat['nome']) ?></span>
+                            <span class="text-primary">→</span>
+                        </div>
+                    </a>
+                </div>
             <?php endforeach; ?>
         </div>
+    </section>
 
-        <form method="GET" class="row g-2 mb-4 align-items-center">
-            <?php if ($categoriaSlug !== ''): ?>
-                <input type="hidden" name="categoria" value="<?= htmlspecialchars($categoriaSlug, ENT_QUOTES, 'UTF-8') ?>">
-            <?php endif; ?>
+    <!-- Produtos em Destaque -->
+    <section id="destaques" class="container mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h4 fw-bold mb-0">Destaques em Stock</h2>
+            <a href="catalogo.php" class="btn btn-outline-dark btn-sm">Ir para o Catálogo</a>
+        </div>
 
-            <div class="col-md-6">
-                <input type="search" name="q" value="<?= htmlspecialchars($pesquisa, ENT_QUOTES, 'UTF-8') ?>"
-                       class="form-control" placeholder="Pesquisar por produto, marca ou especificação...">
-            </div>
-
-            <div class="col-md-4">
-                <select name="ordem" class="form-select">
-                    <option value="recentes" <?= $ordem === 'recentes' ? 'selected' : '' ?>>Ordenar: Mais recentes</option>
-                    <option value="preco_asc" <?= $ordem === 'preco_asc' ? 'selected' : '' ?>>Preço: menor para o maior</option>
-                    <option value="preco_desc" <?= $ordem === 'preco_desc' ? 'selected' : '' ?>>Preço: maior para o menor</option>
-                    <option value="nome_asc" <?= $ordem === 'nome_asc' ? 'selected' : '' ?>>Nome: A → Z</option>
-                </select>
-            </div>
-
-            <div class="col-md-2 d-flex gap-2">
-                <button type="submit" class="btn btn-dark w-100">Filtrar</button>
-                <?php if ($pesquisa !== '' || $ordem !== 'recentes'): ?>
-                    <a href="index.php<?= $categoriaSlug !== '' ? '?categoria=' . rawurlencode($categoriaSlug) : '' ?>" class="btn btn-outline-secondary">Limpar</a>
-                <?php endif; ?>
-            </div>
-        </form>
-
-        <!-- Grelha de Produtos -->
-        <div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
-            <?php if (count($produtos) === 0): ?>
-                <div class="col-12">
-                    <div class="alert alert-warning">Nenhum produto encontrado com estes filtros.</div>
-                </div>
-            <?php else: ?>
-                <?php foreach ($produtos as $prod): ?>
-                    <div class="col">
-                        <div class="card h-100 shadow-sm">
-                            <img src="<?= htmlspecialchars($prod['imagem']) ?>" class="card-img-top" alt="<?= htmlspecialchars($prod['nome']) ?>">
-                            <div class="card-body d-flex flex-column">
-                                <div class="mb-2">
-                                    <span class="badge bg-secondary"><?= htmlspecialchars($prod['categoria_nome']) ?></span>
-                                    <span class="badge bg-info text-dark"><?= htmlspecialchars($prod['marca']) ?></span>
-                                </div>
-                                <h5 class="card-title"><?= htmlspecialchars($prod['nome']) ?></h5>
-                                <p class="card-text text-muted small flex-grow-1"><?= htmlspecialchars($prod['descricao']) ?></p>
-                                <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
-                                    <span class="fs-5 fw-bold text-success"><?= number_format($prod['preco'], 2, ',', ' ') ?> €</span>
-                                    <span class="small <?= $prod['stock'] > 0 ? 'text-muted' : 'text-danger fw-bold' ?>">
-                                        <?= $prod['stock'] > 0 ? "Stock: {$prod['stock']} un." : 'Esgotado' ?>
-                                    </span>
-                                </div>
-                                <form method="POST" action="carrinho.php" class="mt-3">
-                                    <input type="hidden" name="acao" value="adicionar">
-                                    <input type="hidden" name="id" value="<?= (int)$prod['id'] ?>">
-                                    <button type="submit" class="btn btn-primary btn-sm w-100" <?= ((int)$prod['stock'] <= 0) ? 'disabled' : '' ?>>
-                                        <?= ((int)$prod['stock'] > 0) ? '+ Adicionar ao Carrinho' : 'Sem Stock' ?>
-                                    </button>
-                                </form>
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+            <?php foreach ($destaques as $prod): ?>
+                <div class="col">
+                    <div class="card h-100 shadow-sm border-0">
+                        <?php if (!empty($prod['imagem'])): ?>
+                            <img src="<?= htmlspecialchars($prod['imagem']) ?>" class="card-img-top" alt="<?= htmlspecialchars($prod['nome']) ?>" style="height: 200px; object-fit: cover;">
+                        <?php endif; ?>
+                        <div class="card-body d-flex flex-column">
+                            <div class="mb-2">
+                                <span class="badge bg-secondary"><?= htmlspecialchars($prod['categoria_nome']) ?></span>
+                                <span class="badge bg-info text-dark"><?= htmlspecialchars($prod['marca']) ?></span>
                             </div>
+                            <h5 class="card-title"><?= htmlspecialchars($prod['nome']) ?></h5>
+                            <p class="card-text text-muted small flex-grow-1"><?= htmlspecialchars($prod['descricao']) ?></p>
+                            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                                <span class="fs-5 fw-bold text-success"><?= number_format((float)$prod['preco'], 2, ',', ' ') ?> €</span>
+                                <small class="text-muted">Stock: <?= (int)$prod['stock'] ?> un.</small>
+                            </div>
+                            <form method="POST" action="carrinho.php" class="mt-3">
+                                <input type="hidden" name="acao" value="adicionar">
+                                <input type="hidden" name="id" value="<?= (int)$prod['id'] ?>">
+                                <button type="submit" class="btn btn-primary btn-sm w-100">+ Adicionar ao Carrinho</button>
+                            </form>
                         </div>
                     </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
         </div>
-    </div>
+    </section>
 
+    <!-- Vantagens / Rodapé -->
+    <footer class="bg-dark text-white py-4 mt-auto">
+        <div class="container d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <strong>TechStore PAP</strong> — Projeto de Aptidão Profissional
+            </div>
+            <div class="small text-secondary">
+                Catálogo dinâmico • Carrinho com transação PDO • Gestão de stock
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
