@@ -10,6 +10,23 @@ garantirTabelaMensagens($pdo);
 $mensagem = '';
 $tipoAlerta = 'success';
 $estadosValidos = ['Pendente', 'Em preparação', 'Enviada', 'Concluída'];
+$parametrosFiltro = $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : $_GET;
+$filtroEstado = $_SERVER['REQUEST_METHOD'] === 'POST'
+    ? ($parametrosFiltro['filtro_estado'] ?? '')
+    : ($parametrosFiltro['estado'] ?? '');
+$filtroEstado = is_string($filtroEstado) ? trim($filtroEstado) : '';
+if ($filtroEstado !== '' && !in_array($filtroEstado, $estadosValidos, true)) {
+    $filtroEstado = '';
+}
+
+$pesquisaProduto = $parametrosFiltro['q'] ?? '';
+$pesquisaProduto = is_string($pesquisaProduto) ? trim($pesquisaProduto) : '';
+
+$abaAtiva = $parametrosFiltro['aba'] ?? '';
+$abasValidas = ['produtos', 'encomendas', 'categorias', 'mensagens'];
+if (!is_string($abaAtiva) || !in_array($abaAtiva, $abasValidas, true)) {
+    $abaAtiva = $filtroEstado !== '' ? 'encomendas' : 'produtos';
+}
 
 // Criar nova categoria
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'criar_categoria') {
@@ -149,6 +166,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'estado_
     }
 }
 
+// Apagar encomenda e respetivos itens
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'apagar_encomenda') {
+    $encId = (int)($_POST['encomenda_id'] ?? 0);
+    if ($encId > 0) {
+        try {
+            $pdo->beginTransaction();
+            $stmtDelItens = $pdo->prepare("DELETE FROM itens_encomenda WHERE encomenda_id = ?");
+            $stmtDelItens->execute([$encId]);
+
+            $stmtDelEnc = $pdo->prepare("DELETE FROM encomendas WHERE id = ?");
+            $stmtDelEnc->execute([$encId]);
+            $pdo->commit();
+
+            $mensagem = "Encomenda #{$encId} removida.";
+            $tipoAlerta = 'warning';
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $mensagem = "Não foi possível apagar a encomenda.";
+            $tipoAlerta = 'danger';
+        }
+    }
+}
+
 // Marcar mensagem como lida ou por ler
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'alternar_lida') {
     $msgId = (int)($_POST['mensagem_id'] ?? 0);
@@ -174,6 +216,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'apagar_
 // Buscar categorias e produtos para listar na página
 $categorias = $pdo->query("SELECT * FROM categorias ORDER BY nome ASC")->fetchAll();
 $produtos   = $pdo->query("SELECT p.*, c.nome AS categoria_nome FROM produtos p JOIN categorias c ON p.categoria_id = c.id ORDER BY p.id DESC")->fetchAll();
+$produtosVisiveis = $produtos;
+if ($pesquisaProduto !== '') {
+    $ag = mb_strtolower($pesquisaProduto, 'UTF-8');
+    $produtosVisiveis = array_values(array_filter($produtos, static function ($p) use ($ag) {
+        $nome = mb_strtolower((string)($p['nome'] ?? ''), 'UTF-8');
+        $marca = mb_strtolower((string)($p['marca'] ?? ''), 'UTF-8');
+        $cat = mb_strtolower((string)($p['categoria_nome'] ?? ''), 'UTF-8');
+        return mb_strpos($nome, $ag) !== false
+            || mb_strpos($marca, $ag) !== false
+            || mb_strpos($cat, $ag) !== false;
+    }));
+}
 $produtosStockBaixo = 0;
 foreach ($produtos as $p) {
     if ((int)$p['stock'] <= 2) {
@@ -190,6 +244,12 @@ if ($editarId > 0) {
 
 // Buscar encomendas e respetivos itens
 $encomendas = $pdo->query("SELECT * FROM encomendas ORDER BY id DESC")->fetchAll();
+$encomendasVisiveis = $encomendas;
+if ($filtroEstado !== '') {
+    $encomendasVisiveis = array_values(array_filter($encomendas, static function ($e) use ($filtroEstado) {
+        return ($e['estado'] ?? '') === $filtroEstado;
+    }));
+}
 $itensPorEncomenda = [];
 if (!empty($encomendas)) {
     $stmtItens = $pdo->query("SELECT * FROM itens_encomenda ORDER BY id ASC");
@@ -279,22 +339,22 @@ foreach ($mensagensRecebidas as $m) {
 
         <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active fw-semibold" id="tab-produtos" data-bs-toggle="tab" data-bs-target="#pane-produtos" type="button" role="tab" aria-controls="pane-produtos" aria-selected="true">
+                <button class="nav-link <?= $abaAtiva === 'produtos' ? 'active' : '' ?> fw-semibold" id="tab-produtos" data-bs-toggle="tab" data-bs-target="#pane-produtos" type="button" role="tab" aria-controls="pane-produtos" aria-selected="<?= $abaAtiva === 'produtos' ? 'true' : 'false' ?>">
                     🖥️ Produtos (<?= count($produtos) ?>)
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link fw-semibold" id="tab-categorias" data-bs-toggle="tab" data-bs-target="#pane-categorias" type="button" role="tab" aria-controls="pane-categorias" aria-selected="false">
+                <button class="nav-link <?= $abaAtiva === 'categorias' ? 'active' : '' ?> fw-semibold" id="tab-categorias" data-bs-toggle="tab" data-bs-target="#pane-categorias" type="button" role="tab" aria-controls="pane-categorias" aria-selected="<?= $abaAtiva === 'categorias' ? 'true' : 'false' ?>">
                     🏷️ Categorias (<?= count($categorias) ?>)
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link fw-semibold" id="tab-encomendas" data-bs-toggle="tab" data-bs-target="#pane-encomendas" type="button" role="tab" aria-controls="pane-encomendas" aria-selected="false">
+                <button class="nav-link <?= $abaAtiva === 'encomendas' ? 'active' : '' ?> fw-semibold" id="tab-encomendas" data-bs-toggle="tab" data-bs-target="#pane-encomendas" type="button" role="tab" aria-controls="pane-encomendas" aria-selected="<?= $abaAtiva === 'encomendas' ? 'true' : 'false' ?>">
                     📦 Encomendas (<?= count($encomendas) ?>)
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link fw-semibold" id="tab-mensagens" data-bs-toggle="tab" data-bs-target="#pane-mensagens" type="button" role="tab" aria-controls="pane-mensagens" aria-selected="false">
+                <button class="nav-link <?= $abaAtiva === 'mensagens' ? 'active' : '' ?> fw-semibold" id="tab-mensagens" data-bs-toggle="tab" data-bs-target="#pane-mensagens" type="button" role="tab" aria-controls="pane-mensagens" aria-selected="<?= $abaAtiva === 'mensagens' ? 'true' : 'false' ?>">
                     ✉️ Mensagens (<?= count($mensagensRecebidas) ?>)
                     <?php if ($mensagensNaoLidas > 0): ?>
                         <span class="badge bg-warning text-dark ms-1"><?= (int)$mensagensNaoLidas ?></span>
@@ -304,7 +364,7 @@ foreach ($mensagensRecebidas as $m) {
         </ul>
 
         <div class="tab-content" id="adminTabsContent">
-            <div class="tab-pane fade show active" id="pane-produtos" role="tabpanel" aria-labelledby="tab-produtos" tabindex="0">
+            <div class="tab-pane fade <?= $abaAtiva === 'produtos' ? 'show active' : '' ?>" id="pane-produtos" role="tabpanel" aria-labelledby="tab-produtos" tabindex="0">
         <!-- Formulário para Adicionar Produto -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-primary text-white fw-bold">
@@ -421,9 +481,37 @@ foreach ($mensagensRecebidas as $m) {
         <?php endif; ?>
 
         <!-- Tabela de Gestão de Stock e Produtos -->
+        <form method="GET" class="row g-2 align-items-center mb-3">
+            <?php if ($editarId > 0): ?>
+                <input type="hidden" name="editar_id" value="<?= (int)$editarId ?>">
+            <?php endif; ?>
+            <?php if ($filtroEstado !== ''): ?>
+                <input type="hidden" name="estado" value="<?= htmlspecialchars($filtroEstado) ?>">
+            <?php endif; ?>
+            <input type="hidden" name="aba" value="produtos">
+            <div class="col-sm-8 col-md-6">
+                <input type="search" name="q" value="<?= htmlspecialchars($pesquisaProduto) ?>"
+                       class="form-control form-control-sm" placeholder="Pesquisar produto por nome, marca ou categoria...">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-outline-dark btn-sm">Pesquisar</button>
+                <?php if ($pesquisaProduto !== ''): ?>
+                    <?php
+                    $parametrosLimparPesquisa = ['aba' => 'produtos'];
+                    if ($editarId > 0) {
+                        $parametrosLimparPesquisa['editar_id'] = $editarId;
+                    }
+                    if ($filtroEstado !== '') {
+                        $parametrosLimparPesquisa['estado'] = $filtroEstado;
+                    }
+                    ?>
+                    <a href="admin.php?<?= htmlspecialchars(http_build_query($parametrosLimparPesquisa)) ?>" class="btn btn-link btn-sm text-secondary">Limpar</a>
+                <?php endif; ?>
+            </div>
+        </form>
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-dark text-white fw-bold">
-                Catálogo Atual (<?= count($produtos) ?> produtos)
+                Catálogo Atual (<?= count($produtosVisiveis) ?><?= $pesquisaProduto !== '' ? ' de ' . count($produtos) : '' ?> produtos)
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
@@ -438,7 +526,7 @@ foreach ($mensagensRecebidas as $m) {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($produtos as $prod): ?>
+                        <?php foreach ($produtosVisiveis as $prod): ?>
                             <tr>
                                 <td><?= $prod['id'] ?></td>
                                 <td>
@@ -450,6 +538,13 @@ foreach ($mensagensRecebidas as $m) {
                                     <form method="POST" class="d-flex gap-1 align-items-center">
                                         <input type="hidden" name="acao" value="atualizar">
                                         <input type="hidden" name="id" value="<?= $prod['id'] ?>">
+                                        <input type="hidden" name="aba" value="produtos">
+                                        <?php if ($pesquisaProduto !== ''): ?>
+                                            <input type="hidden" name="q" value="<?= htmlspecialchars($pesquisaProduto) ?>">
+                                        <?php endif; ?>
+                                        <?php if ($filtroEstado !== ''): ?>
+                                            <input type="hidden" name="filtro_estado" value="<?= htmlspecialchars($filtroEstado) ?>">
+                                        <?php endif; ?>
                                         <input type="number" step="0.01" min="0" name="preco" value="<?= $prod['preco'] ?>" class="form-control form-control-sm">
                                 </td>
                                 <td>
@@ -461,12 +556,24 @@ foreach ($mensagensRecebidas as $m) {
                                     <form method="POST" class="d-inline" onsubmit="return confirm('Tens a certeza que queres apagar este produto?');">
                                         <input type="hidden" name="acao" value="apagar">
                                         <input type="hidden" name="id" value="<?= $prod['id'] ?>">
+                                        <input type="hidden" name="aba" value="produtos">
+                                        <?php if ($pesquisaProduto !== ''): ?>
+                                            <input type="hidden" name="q" value="<?= htmlspecialchars($pesquisaProduto) ?>">
+                                        <?php endif; ?>
+                                        <?php if ($filtroEstado !== ''): ?>
+                                            <input type="hidden" name="filtro_estado" value="<?= htmlspecialchars($filtroEstado) ?>">
+                                        <?php endif; ?>
                                         <button type="submit" class="btn btn-danger btn-sm">Apagar</button>
                                     </form>
                                     <a href="admin.php?editar_id=<?= (int)$prod['id'] ?>" class="btn btn-warning btn-sm">Editar</a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
+                        <?php if (empty($produtosVisiveis)): ?>
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-3">Nenhum produto encontrado para esta pesquisa.</td>
+                            </tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -474,7 +581,7 @@ foreach ($mensagensRecebidas as $m) {
 
             </div>
 
-            <div class="tab-pane fade" id="pane-categorias" role="tabpanel" aria-labelledby="tab-categorias" tabindex="0">
+            <div class="tab-pane fade <?= $abaAtiva === 'categorias' ? 'show active' : '' ?>" id="pane-categorias" role="tabpanel" aria-labelledby="tab-categorias" tabindex="0">
                 <!-- Gestão de Categorias -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-secondary text-white fw-bold">
@@ -504,18 +611,49 @@ foreach ($mensagensRecebidas as $m) {
                 </div>
             </div>
 
-            <div class="tab-pane fade" id="pane-encomendas" role="tabpanel" aria-labelledby="tab-encomendas" tabindex="0">
+            <div class="tab-pane fade <?= $abaAtiva === 'encomendas' ? 'show active' : '' ?>" id="pane-encomendas" role="tabpanel" aria-labelledby="tab-encomendas" tabindex="0">
         <!-- Encomendas Realizadas -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-dark text-white fw-bold">
-                📦 Encomendas Realizadas (<?= count($encomendas) ?>)
+                📦 Encomendas Realizadas (<?= count($encomendasVisiveis) ?><?= $filtroEstado !== '' ? ' de ' . count($encomendas) : '' ?>)
             </div>
             <div class="card-body">
-                <?php if (empty($encomendas)): ?>
+                <form method="GET" class="row g-2 align-items-end mb-3">
+                    <?php if ($pesquisaProduto !== ''): ?>
+                        <input type="hidden" name="q" value="<?= htmlspecialchars($pesquisaProduto) ?>">
+                    <?php endif; ?>
+                    <input type="hidden" name="aba" value="encomendas">
+                    <div class="col-sm-6 col-md-4">
+                        <label for="filtro_estado" class="form-label small mb-1">Filtrar por estado</label>
+                        <select id="filtro_estado" name="estado" class="form-select form-select-sm">
+                            <option value="">Todos os estados</option>
+                            <?php foreach ($estadosValidos as $estadoOpcao): ?>
+                                <option value="<?= htmlspecialchars($estadoOpcao) ?>" <?= $filtroEstado === $estadoOpcao ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($estadoOpcao) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-outline-primary btn-sm">Aplicar Filtro</button>
+                        <?php if ($filtroEstado !== ''): ?>
+                            <?php
+                            $parametrosTodosEstados = ['aba' => 'encomendas'];
+                            if ($pesquisaProduto !== '') {
+                                $parametrosTodosEstados['q'] = $pesquisaProduto;
+                            }
+                            ?>
+                            <a href="admin.php?<?= htmlspecialchars(http_build_query($parametrosTodosEstados)) ?>" class="btn btn-link btn-sm text-secondary">Todos</a>
+                        <?php endif; ?>
+                    </div>
+                </form>
+                <?php if (empty($encomendasVisiveis) && empty($encomendas)): ?>
                     <p class="text-muted mb-0">Ainda não existem encomendas registadas.</p>
+                <?php elseif (empty($encomendasVisiveis)): ?>
+                    <p class="text-muted mb-0">Não existem encomendas com este estado.</p>
                 <?php else: ?>
                     <div class="accordion" id="accordionEncomendas">
-                        <?php foreach ($encomendas as $idx => $enc): ?>
+                        <?php foreach ($encomendasVisiveis as $idx => $enc): ?>
                             <?php $linhas = $itensPorEncomenda[(int)$enc['id']] ?? []; ?>
                             <div class="accordion-item">
                                 <h2 class="accordion-header">
@@ -550,6 +688,13 @@ foreach ($mensagensRecebidas as $m) {
                                         <form method="POST" class="row g-2 align-items-end mb-3">
                                             <input type="hidden" name="acao" value="estado_encomenda">
                                             <input type="hidden" name="encomenda_id" value="<?= (int)$enc['id'] ?>">
+                                            <input type="hidden" name="aba" value="encomendas">
+                                            <?php if ($filtroEstado !== ''): ?>
+                                                <input type="hidden" name="filtro_estado" value="<?= htmlspecialchars($filtroEstado) ?>">
+                                            <?php endif; ?>
+                                            <?php if ($pesquisaProduto !== ''): ?>
+                                                <input type="hidden" name="q" value="<?= htmlspecialchars($pesquisaProduto) ?>">
+                                            <?php endif; ?>
                                             <div class="col-sm-6 col-md-4">
                                                 <label for="estado<?= (int)$enc['id'] ?>" class="form-label">Estado da encomenda</label>
                                                 <select id="estado<?= (int)$enc['id'] ?>" name="estado" class="form-select">
@@ -563,6 +708,18 @@ foreach ($mensagensRecebidas as $m) {
                                             <div class="col-sm-6 col-md-3">
                                                 <button type="submit" class="btn btn-primary">Atualizar Estado</button>
                                             </div>
+                                        </form>
+                                        <form method="POST" class="d-inline ms-sm-2" onsubmit="return confirm('Tens a certeza que queres apagar esta encomenda?');">
+                                            <input type="hidden" name="acao" value="apagar_encomenda">
+                                            <input type="hidden" name="encomenda_id" value="<?= (int)$enc['id'] ?>">
+                                            <input type="hidden" name="aba" value="encomendas">
+                                            <?php if ($filtroEstado !== ''): ?>
+                                                <input type="hidden" name="filtro_estado" value="<?= htmlspecialchars($filtroEstado) ?>">
+                                            <?php endif; ?>
+                                            <?php if ($pesquisaProduto !== ''): ?>
+                                                <input type="hidden" name="q" value="<?= htmlspecialchars($pesquisaProduto) ?>">
+                                            <?php endif; ?>
+                                            <button type="submit" class="btn btn-outline-danger btn-sm">Apagar Encomenda</button>
                                         </form>
                                         <div class="table-responsive">
                                             <table class="table table-sm align-middle mb-0">
@@ -598,7 +755,7 @@ foreach ($mensagensRecebidas as $m) {
         </div>
             </div>
 
-            <div class="tab-pane fade" id="pane-mensagens" role="tabpanel" aria-labelledby="tab-mensagens" tabindex="0">
+            <div class="tab-pane fade <?= $abaAtiva === 'mensagens' ? 'show active' : '' ?>" id="pane-mensagens" role="tabpanel" aria-labelledby="tab-mensagens" tabindex="0">
         <!-- Mensagens Recebidas -->
         <div class="card shadow-sm">
             <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center">
